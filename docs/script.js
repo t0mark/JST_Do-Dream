@@ -142,7 +142,7 @@ async function loadCSVData() {
 function initMap() {
     map = L.map('map', {
         zoomControl: false,
-        scrollWheelZoom: false,
+        scrollWheelZoom: true,
         doubleClickZoom: false,
         boxZoom: false,
         keyboard: false,
