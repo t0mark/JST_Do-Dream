@@ -13,7 +13,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>한국 지역별 데이터 시각화</h1>
+        <h1>농업 지역 경쟁력 분석 대시보드</h1>
     </div>
     
     <div class="container">
@@ -22,6 +22,17 @@
                 <p>지도 데이터를 불러오는 중...</p>
             </div>
             <div id="map"></div>
+            
+            <!-- 순위 차트 뷰 (숨김) -->
+            <div id="ranking-view" class="ranking-view" style="display: none;">
+                <div class="ranking-main-header">
+                    <h2>🏆 농업 종합 순위</h2>
+                    <p>종합 점수를 기준으로 한 상위 5개 지역과 전북 전주시 비교</p>
+                </div>
+                <div class="ranking-main-chart">
+                    <canvas id="ranking-main-chart"></canvas>
+                </div>
+            </div>
             
             <!-- 지도 위 오버레이 패널들 -->
             <div id="data-panels-overlay" class="data-panels-overlay" style="display: none;">
@@ -94,22 +105,49 @@
                         <p>지역의 농업 전반에 대한 종합적인 평가 점수입니다. 모든 농업 지표를 종합하여 산출됩니다.</p>
                     </div>
                 </div>
-            </div>
-            
-            <div class="info-panel">
-                <h3>사용 안내</h3>
-                <div class="instruction">
-                    <p>🗺️ 지도에서 지역을 클릭하면 데이터 패널이 나타납니다.</p>
-                    <p>🔄 최대 2개 지역을 선택하여 비교할 수 있습니다.</p>
-                    <p>❌ 패널 우상단 X 버튼으로 닫을 수 있습니다.</p>
-                    <p>📊 데이터 유형을 변경하면 색상도 자동으로 변경됩니다.</p>
+                
+                <!-- 순위 보기 버튼 -->
+                <div class="ranking-button-container">
+                    <button id="showRankingBtn" class="ranking-btn">
+                        🏆 종합 순위 보기
+                    </button>
                 </div>
             </div>
             
-            <div class="legend">
-                <h4>범례</h4>
-                <div id="legend-content">
-                    <!-- 범례 내용이 여기에 동적으로 추가됩니다 -->
+            <!-- 지도 뷰 (기본) -->
+            <div id="map-sidebar-content">
+                <div class="info-panel">
+                    <h3>사용 안내</h3>
+                    <div class="instruction">
+                        <p>🗺️ 지도에서 지역을 클릭하면 데이터 패널이 나타납니다.</p>
+                        <p>🔄 최대 2개 지역을 선택하여 비교할 수 있습니다.</p>
+                        <p>❌ 패널 우상단 X 버튼으로 닫을 수 있습니다.</p>
+                        <p>📊 데이터 유형을 변경하면 색상도 자동으로 변경됩니다.</p>
+                    </div>
+                </div>
+                
+                <div class="legend">
+                    <h4>범례</h4>
+                    <div id="legend-content">
+                        <!-- 범례 내용이 여기에 동적으로 추가됩니다 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 순위 뷰 (숨김) -->
+            <div id="ranking-sidebar-content" style="display: none;">
+                <div class="ranking-header">
+                    <h3>🏆 순위 분석</h3>
+                    <button id="backToMapBtn" class="back-btn">
+                        🗺️ 지도로 돌아가기
+                    </button>
+                </div>
+                
+                <div class="ranking-info">
+                    <h4>📈 상세 순위</h4>
+                    <div id="ranking-details">
+                        <!-- 순위 상세 정보가 여기에 추가됩니다 -->
+                    </div>
                 </div>
             </div>
         </div>

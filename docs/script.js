@@ -4,6 +4,8 @@ let geojsonLayer;
 let currentData = {};
 let selectedLayers = [];
 let charts = {};
+let rankingMainChart = null;
+let isRankingView = false;
 
 // 색상 스킴 정의 (데이터 유형별)
 const colorSchemes = {
@@ -889,8 +891,248 @@ function updateData() {
     }
 }
 
-// 이벤트 리스너 등록
-document.getElementById('dataType').addEventListener('change', updateData);
+// 순위 데이터 생성
+function getRankingData() {
+    // 종합 점수 기준으로 정렬
+    const sortedRegions = Object.entries(currentData)
+        .filter(([regionName, data]) => data.overallScore && data.overallScore > 0)
+        .sort((a, b) => b[1].overallScore - a[1].overallScore);
+    
+    // Top 5 추출
+    const top5 = sortedRegions.slice(0, 5);
+    
+    // 전북 전주시 찾기
+    const jeonjuData = sortedRegions.find(([regionName, data]) => 
+        regionName.includes('전주') || regionName.includes('전북 전주시')
+    );
+    
+    let rankingData = [...top5];
+    
+    // 전주시가 Top 5에 없으면 추가
+    if (jeonjuData && !top5.find(([name]) => name === jeonjuData[0])) {
+        rankingData.push(jeonjuData);
+    }
+    
+    return {
+        data: rankingData,
+        jeonjuRank: jeonjuData ? sortedRegions.findIndex(([name]) => name === jeonjuData[0]) + 1 : null
+    };
+}
+
+// 메인 순위 차트 생성 (지도 영역에 크게 표시)
+function createRankingChart() {
+    const ctx = document.getElementById('ranking-main-chart').getContext('2d');
+    const rankingInfo = getRankingData();
+    const rankingData = rankingInfo.data;
+    
+    if (rankingMainChart) {
+        rankingMainChart.destroy();
+    }
+    
+    const labels = rankingData.map(([regionName]) => {
+        // 지역명 전체 표시
+        return regionName;
+    });
+    
+    const scores = rankingData.map(([, data]) => data.overallScore);
+    
+    // 실제 데이터 범위 계산
+    const maxScore = Math.max(...scores);
+    const minScore = Math.min(...scores);
+    const scoreRange = maxScore - minScore;
+    const yAxisMax = maxScore + (scoreRange * 0.1); // 최대값에서 10% 여유
+    const yAxisMin = Math.max(0, minScore - (scoreRange * 0.1)); // 최소값에서 10% 여유 (0 이하로 가지 않음)
+    
+    console.log('점수 범위:', { minScore, maxScore, yAxisMin, yAxisMax });
+    
+    // 전주시 여부 확인해서 색상 다르게
+    const backgroundColors = rankingData.map(([regionName]) => {
+        if (regionName.includes('전주')) {
+            return '#f39c12'; // 전주시는 오렌지
+        }
+        return '#3498db'; // 나머지는 블루
+    });
+    
+    const borderColors = rankingData.map(([regionName]) => {
+        if (regionName.includes('전주')) {
+            return '#e67e22';
+        }
+        return '#2980b9';
+    });
+    
+    rankingMainChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '종합 점수',
+                data: scores,
+                backgroundColor: backgroundColors,
+                borderColor: borderColors,
+                borderWidth: 3,
+                borderRadius: 12,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    titleFont: {
+                        size: 16,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 14
+                    },
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        title: function(context) {
+                            const index = context[0].dataIndex;
+                            const actualRank = rankingData[index][0].includes('전주') && index === 5 ? 
+                                rankingInfo.jeonjuRank : index + 1;
+                            return `${actualRank}위: ${rankingData[index][0]}`;
+                        },
+                        label: function(context) {
+                            return `종합 점수: ${context.parsed.y.toFixed(4)}점`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    min: yAxisMin,
+                    max: yAxisMax,
+                    grid: {
+                        color: 'rgba(0,0,0,0.1)',
+                        lineWidth: 1
+                    },
+                    ticks: {
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        color: '#2c3e50',
+                        callback: function(value) {
+                            return value.toFixed(4);
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: '종합 점수',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        color: '#2c3e50'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            size: 13,
+                            weight: 'bold'
+                        },
+                        color: '#2c3e50',
+                        maxRotation: 45
+                    }
+                }
+            },
+            layout: {
+                padding: {
+                    top: 20,
+                    bottom: 20,
+                    left: 20,
+                    right: 20
+                }
+            }
+        }
+    });
+    
+    // 순위 상세 정보 업데이트
+    updateRankingDetails(rankingInfo);
+}
+
+// 순위 상세 정보 업데이트
+function updateRankingDetails(rankingInfo) {
+    const detailsContainer = document.getElementById('ranking-details');
+    const rankingData = rankingInfo.data;
+    
+    let detailsHTML = '';
+    
+    rankingData.forEach(([regionName, data], index) => {
+        const isJeonju = regionName.includes('전주');
+        const actualRank = isJeonju && index === 5 ? rankingInfo.jeonjuRank : index + 1;
+        
+        detailsHTML += `
+            <div class="ranking-item ${isJeonju ? 'jeonju' : ''}">
+                <span class="ranking-number">${actualRank}위</span>
+                <span class="ranking-region">${regionName}</span>
+                <span class="ranking-score">${data.overallScore.toFixed(4)}점</span>
+            </div>
+        `;
+    });
+    
+    detailsContainer.innerHTML = detailsHTML;
+}
+
+// 순위 뷰 표시
+function showRanking() {
+    isRankingView = true;
+    
+    // 기존 패널들 모두 닫기
+    closePanels();
+    
+    // 지도 숨기고 순위 뷰 표시
+    document.getElementById('map').style.display = 'none';
+    document.getElementById('ranking-view').style.display = 'flex';
+    
+    // 사이드바 내용 전환
+    document.getElementById('map-sidebar-content').style.display = 'none';
+    document.getElementById('ranking-sidebar-content').style.display = 'block';
+    
+    // 메인 순위 차트 생성
+    setTimeout(() => {
+        createRankingChart();
+    }, 100);
+}
+
+// 지도 뷰 표시
+function showMap() {
+    isRankingView = false;
+    
+    // 순위 뷰 숨기고 지도 표시
+    document.getElementById('ranking-view').style.display = 'none';
+    document.getElementById('map').style.display = 'block';
+    
+    // 사이드바 내용 전환
+    document.getElementById('map-sidebar-content').style.display = 'block';
+    document.getElementById('ranking-sidebar-content').style.display = 'none';
+    
+    // 순위 차트 정리
+    if (rankingMainChart) {
+        rankingMainChart.destroy();
+        rankingMainChart = null;
+    }
+    
+    // 지도 크기 재조정 (숨겨졌다가 다시 표시될 때 필요)
+    setTimeout(() => {
+        if (map) {
+            map.invalidateSize();
+        }
+    }, 100);
+}
 
 // 초기화
 document.addEventListener('DOMContentLoaded', async function() {
@@ -899,4 +1141,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     initMap();
     loadGeoJSON();
     updateCategoryDescription(); // 초기 카테고리 설명 표시
+    
+    // 이벤트 리스너 등록
+    document.getElementById('dataType').addEventListener('change', updateData);
+    document.getElementById('showRankingBtn').addEventListener('click', showRanking);
+    document.getElementById('backToMapBtn').addEventListener('click', showMap);
 });
