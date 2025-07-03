@@ -16,11 +16,40 @@ const colorSchemes = {
 
 // 데이터 유형별 색상 스킴 매핑
 const dataTypeColorMap = {
-    sample: 'blues',           // 전체 농업 데이터 - 블루
-    foodtech: 'greens',        // 푸드테크 지수 - 그린
-    digital_agriculture: 'oranges', // 디지털농업 지수 - 오렌지
-    medical_bio: 'reds',       // 메디컬/바이오 지수 - 레드
-    convergence: 'purples'     // 융합형 지수 - 퍼플
+    overall: 'blues',          // 종합 점수 - 블루
+    production: 'greens',      // 생산량 지수 - 그린
+    infrastructure: 'oranges', // 인프라 지수 - 오렌지
+    distribution: 'reds',      // 유통 역량 - 레드
+    migration: 'purples'       // 귀농 활성도 - 퍼플
+};
+
+// 데이터 유형별 설명
+const dataTypeDescriptions = {
+    overall: {
+        title: '📊 종합 점수',
+        description: '지역의 농업 전반에 대한 종합적인 평가 점수입니다. 모든 농업 지표를 종합하여 산출됩니다.',
+        borderColor: '#3498db'
+    },
+    production: {
+        title: '🌾 생산량 지수',
+        description: '10a당 총 쌀 생산량을 기준으로 한 농업 생산성 지표입니다. 높을수록 생산성이 우수합니다.',
+        borderColor: '#4caf50'
+    },
+    infrastructure: {
+        title: '🚜 인프라 지수',
+        description: '농기계 보유량과 저수 시설을 종합한 농업 인프라 수준입니다. 농업 기반 시설의 충실도를 나타냅니다.',
+        borderColor: '#ff9800'
+    },
+    distribution: {
+        title: '🏪 유통 역량',
+        description: '유통망과 미곡처리장 수를 기반으로 한 농산물 유통 인프라 수준입니다.',
+        borderColor: '#f44336'
+    },
+    migration: {
+        title: '🏡 귀농 활성도',
+        description: '전체 농가 대비 귀농 인구 비율로 측정하는 지역의 귀농 유입 활성화 정도입니다.',
+        borderColor: '#9c27b0'
+    }
 };
 
 // CSV 데이터 로드 함수
@@ -178,12 +207,32 @@ function highlightFeature(e) {
     
     const regionName = layer.feature.properties.CTP_KOR_NM || layer.feature.properties.SIG_KOR_NM || layer.feature.properties.name;
     const data = currentData[regionName];
+    const dataType = document.getElementById('dataType').value;
     
     let tooltipContent = `<strong>${regionName}</strong>`;
-    if (data && data.overallScore > 0) {
-        tooltipContent += `<br>종합 점수: ${data.overallScore}점`;
-        tooltipContent += `<br>농가 수: ${data.farmCount.toLocaleString()}개`;
-        tooltipContent += `<br>쌀 생산량: ${data.riceProduction} kg/10a`;
+    if (data && data.industry > 0) {
+        switch (dataType) {
+            case 'overall':
+                tooltipContent += `<br>종합 점수: ${data.overallScore}점`;
+                break;
+            case 'production':
+                tooltipContent += `<br>쌀 생산량: ${data.riceProduction} kg/10a`;
+                break;
+            case 'infrastructure':
+                tooltipContent += `<br>인프라 지수: ${data.industry.toFixed(1)}`;
+                tooltipContent += `<br>농기계: ${data.machineryCount}대, 저수시설: ${data.waterFacilities}개`;
+                break;
+            case 'distribution':
+                tooltipContent += `<br>유통 역량: ${data.industry}`;
+                tooltipContent += `<br>유통망: ${data.distributionCount}개, 처리장: ${data.processingCount}개`;
+                break;
+            case 'migration':
+                tooltipContent += `<br>귀농 비율: ${data.returnRatio}%`;
+                tooltipContent += `<br>귀농 인구: ${data.returnFarmers}명`;
+                break;
+            default:
+                tooltipContent += `<br>값: ${data.industry.toFixed(1)}`;
+        }
     } else {
         tooltipContent += `<br><em>데이터 없음</em>`;
     }
@@ -267,6 +316,7 @@ function closePanels() {
 function updateRegionInfo() {
     const regionSummary = document.getElementById('region-summary');
     const regionInfoOverlay = document.getElementById('region-info-overlay');
+    const dataType = document.getElementById('dataType').value;
     
     if (selectedLayers.length === 0) {
         regionInfoOverlay.classList.remove('show');
@@ -278,13 +328,30 @@ function updateRegionInfo() {
         const regionName = layer.feature.properties.CTP_KOR_NM || layer.feature.properties.SIG_KOR_NM || layer.feature.properties.name;
         const data = currentData[regionName];
         
-        if (data && data.overallScore > 0) {
+        if (data && data.industry > 0) {
+            let detailInfo = '';
+            switch (dataType) {
+                case 'overall':
+                    detailInfo = `종합 점수: ${data.overallScore}점<br>농가 수: ${data.farmCount.toLocaleString()}개`;
+                    break;
+                case 'production':
+                    detailInfo = `쌀 생산량: ${data.riceProduction} kg/10a<br>정곡: ${data.polishedRice} kg/10a`;
+                    break;
+                case 'infrastructure':
+                    detailInfo = `인프라 지수: ${data.industry.toFixed(1)}<br>농기계: ${data.machineryCount}대, 저수시설: ${data.waterFacilities}개`;
+                    break;
+                case 'distribution':
+                    detailInfo = `유통 역량: ${data.industry}<br>유통망: ${data.distributionCount}개, 처리장: ${data.processingCount}개`;
+                    break;
+                case 'migration':
+                    detailInfo = `귀농 비율: ${data.returnRatio}%<br>귀농 인구: ${data.returnFarmers}명`;
+                    break;
+            }
+            
             summaryHTML += `
                 <div class="region-card ${index === 1 ? 'region-2' : ''}">
                     <h5>지역 ${index + 1}: ${regionName}</h5>
-                    <p>종합 점수: ${data.overallScore}점</p>
-                    <p>농가 수: ${data.farmCount.toLocaleString()}개</p>
-                    <p>귀농 인구: ${data.returnFarmers}명 (${data.returnRatio}%)</p>
+                    <p>${detailInfo}</p>
                 </div>
             `;
         } else {
@@ -680,6 +747,28 @@ function updateLegend() {
     const min = Math.min(...allValues);
     const stepSize = (max - min) / (colors.length - 1);
     
+    // 카테고리별 단위 설정
+    let unit = '';
+    switch (dataType) {
+        case 'overall':
+            unit = '점';
+            break;
+        case 'production':
+            unit = 'kg/10a';
+            break;
+        case 'infrastructure':
+            unit = '지수';
+            break;
+        case 'distribution':
+            unit = '점수';
+            break;
+        case 'migration':
+            unit = '%';
+            break;
+        default:
+            unit = '';
+    }
+    
     const legendContent = document.getElementById('legend-content');
     legendContent.innerHTML = '';
     
@@ -693,12 +782,12 @@ function updateLegend() {
         if (i === colors.length - 1) {
             legendItem.innerHTML = `
                 <div class="legend-color" style="background-color: ${colors[i]}"></div>
-                <span>${minValue.toFixed(1)} - ${max.toFixed(1)} 점</span>
+                <span>${minValue.toFixed(1)} - ${max.toFixed(1)} ${unit}</span>
             `;
         } else {
             legendItem.innerHTML = `
                 <div class="legend-color" style="background-color: ${colors[i]}"></div>
-                <span>${minValue.toFixed(1)} - ${maxValue.toFixed(1)} 점</span>
+                <span>${minValue.toFixed(1)} - ${maxValue.toFixed(1)} ${unit}</span>
             `;
         }
         
@@ -706,9 +795,71 @@ function updateLegend() {
     }
 }
 
-// 데이터 업데이트 (색상과 범례만 변경, 데이터 재로드 없음)
+// 카테고리별 데이터 값 업데이트
+function updateDataValues() {
+    const dataType = document.getElementById('dataType').value;
+    
+    Object.keys(currentData).forEach(regionName => {
+        const regionData = currentData[regionName];
+        
+        switch (dataType) {
+            case 'overall':
+                // 종합 점수 사용
+                regionData.industry = regionData.overallScore;
+                break;
+                
+            case 'production':
+                // 10a당 총 쌀 생산량 사용
+                regionData.industry = regionData.riceProduction;
+                break;
+                
+            case 'infrastructure':
+                // 농기계 수와 저수 시설의 가중 평균 (정규화)
+                const normalizedMachinery = regionData.machineryCount / 10; // 스케일 조정
+                const normalizedWater = regionData.waterFacilities * 5; // 스케일 조정
+                regionData.industry = (normalizedMachinery + normalizedWater) / 2;
+                break;
+                
+            case 'distribution':
+                // 유통망 수와 미곡처리장 수의 가중합
+                regionData.industry = (regionData.distributionCount * 3) + (regionData.processingCount * 2);
+                break;
+                
+            case 'migration':
+                // 귀농 비율 사용
+                regionData.industry = regionData.returnRatio;
+                break;
+                
+            default:
+                regionData.industry = regionData.overallScore;
+        }
+    });
+}
+
+// 카테고리 설명 업데이트
+function updateCategoryDescription() {
+    const dataType = document.getElementById('dataType').value;
+    const categoryInfo = document.getElementById('category-info');
+    const categoryDescription = document.querySelector('.category-description');
+    const info = dataTypeDescriptions[dataType];
+    
+    if (info && categoryInfo && categoryDescription) {
+        categoryInfo.innerHTML = `
+            <h5>${info.title}</h5>
+            <p>${info.description}</p>
+        `;
+        
+        // 테두리 색상도 카테고리에 맞게 변경
+        categoryDescription.style.borderLeftColor = info.borderColor;
+    }
+}
+
+// 데이터 업데이트 (실제 데이터 값 변경)
 function updateData() {
-    // 지도 스타일 업데이트 (색상만 변경)
+    // 카테고리에 따른 실제 데이터 값 업데이트
+    updateDataValues();
+    
+    // 지도 스타일 업데이트 (색상과 값 모두 변경)
     if (geojsonLayer) {
         geojsonLayer.setStyle(style);
         
@@ -726,11 +877,16 @@ function updateData() {
         bringSelectedLayersToFront();
     }
     
-    // 범례만 업데이트 (색상 변경)
+    // 범례 업데이트 (새로운 값 범위로)
     updateLegend();
     
-    // 차트 데이터는 동일하므로 다시 로드하지 않음
-    // 선택된 지역과 패널 내용은 그대로 유지
+    // 카테고리 설명 업데이트
+    updateCategoryDescription();
+    
+    // 선택된 지역의 툴팁 정보도 업데이트
+    if (selectedLayers.length > 0) {
+        updateRegionInfo();
+    }
 }
 
 // 이벤트 리스너 등록
@@ -739,6 +895,8 @@ document.getElementById('dataType').addEventListener('change', updateData);
 // 초기화
 document.addEventListener('DOMContentLoaded', async function() {
     await loadCSVData();
+    updateDataValues(); // 초기 카테고리에 맞는 데이터 값 설정
     initMap();
     loadGeoJSON();
+    updateCategoryDescription(); // 초기 카테고리 설명 표시
 });
