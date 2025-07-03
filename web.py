@@ -1,15 +1,14 @@
 import streamlit as st
 import plotly.graph_objects as go
-import requests
+import json
 
 st.title("한국 시군구 블록 지도")
 
 @st.cache_data
 def load_korea_geojson():
-    # 시도 단위 (가벼움)
-    url = "https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2018/json/skorea-municipalities-2018-geo.json"
-    response = requests.get(url)
-    return response.json()
+    # 로컬 JSON 파일에서 데이터 로드
+    with open('skorea-municipalities-2018-geo.json', 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 # 지도 데이터 로드
 korea_geojson = load_korea_geojson()
@@ -75,6 +74,15 @@ fig.update_layout(
 
 fig.update_xaxes(scaleanchor="y", scaleratio=1)
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True, config={
+    'displayModeBar': False,  # 도구 모음 숨기기
+    'scrollZoom': False,      # 스크롤 줌 비활성화
+    'doubleClick': False,     # 더블클릭 줌 비활성화
+    'dragMode': False,        # 드래그 비활성화
+    'pan': False,             # 팬(이동) 비활성화
+    'zoom': False,            # 줌 비활성화
+    'select': False,          # 선택 비활성화
+    'lasso': False            # 올가미 선택 비활성화
+})
 
 st.info("시도 단위 블록 지도입니다.")
