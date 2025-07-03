@@ -5,59 +5,103 @@ let currentData = {};
 let selectedLayers = [];
 let charts = {};
 
-// 색상 스킴 정의
+// 색상 스킴 정의 (데이터 유형별)
 const colorSchemes = {
     blues: ['#e3f2fd', '#bbdefb', '#90caf9', '#64b5f6', '#42a5f5', '#2196f3', '#1e88e5', '#1976d2', '#1565c0'],
     greens: ['#e8f5e8', '#c8e6c9', '#a5d6a7', '#81c784', '#66bb6a', '#4caf50', '#43a047', '#388e3c', '#2e7d32'],
     reds: ['#ffebee', '#ffcdd2', '#ef9a9a', '#e57373', '#ef5350', '#f44336', '#e53935', '#d32f2f', '#c62828'],
-    oranges: ['#fff3e0', '#ffe0b2', '#ffcc80', '#ffb74d', '#ffa726', '#ff9800', '#fb8c00', '#f57c00', '#ef6c00']
+    oranges: ['#fff3e0', '#ffe0b2', '#ffcc80', '#ffb74d', '#ffa726', '#ff9800', '#fb8c00', '#f57c00', '#ef6c00'],
+    purples: ['#f3e5f5', '#e1bee7', '#ce93d8', '#ba68c8', '#ab47bc', '#9c27b0', '#8e24aa', '#7b1fa2', '#6a1b9a']
 };
 
-// 데이터 로드 함수
-async function loadProductionData() {
+// 데이터 유형별 색상 스킴 매핑
+const dataTypeColorMap = {
+    sample: 'blues',           // 전체 농업 데이터 - 블루
+    foodtech: 'greens',        // 푸드테크 지수 - 그린
+    digital_agriculture: 'oranges', // 디지털농업 지수 - 오렌지
+    medical_bio: 'reds',       // 메디컬/바이오 지수 - 레드
+    convergence: 'purples'     // 융합형 지수 - 퍼플
+};
+
+// CSV 데이터 로드 함수
+async function loadCSVData() {
     try {
-        const response = await fetch('./data/논벼_경작지당_생산량.json');
+        const response = await fetch('./total.csv');
         if (!response.ok) {
-            throw new Error(`데이터 파일을 찾을 수 없습니다: 논벼_경작지당_생산량.json`);
+            throw new Error(`CSV 파일을 찾을 수 없습니다: total.csv`);
         }
-        const rawData = await response.json();
+        const csvText = await response.text();
         
-        // 데이터 변환: 배열을 객체로 변환하고 구조 통일
-        const transformedData = {};
-        rawData.forEach(item => {
-            const regionName = item["지역"];
-            const production = item["경작지 당 생산량 [kg/ha]"];
+        // CSV 파싱
+        const lines = csvText.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim());
+        
+        currentData = {};
+        
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
             
-            transformedData[regionName] = {
-                industry: production, // 색상 매핑용
-                production: production,
-                population: 0, // 기본값
-                economy: 0, // 기본값
-                environment: 0 // 기본값
+            const values = line.split(',');
+            if (values.length < headers.length) continue;
+            
+            const regionName = values[0].trim();
+            if (!regionName) continue;
+            
+            // 데이터 구조 정의
+            currentData[regionName] = {
+                // 기본 정보
+                region: regionName,
+                
+                // 산업 현황 (생산량 관련)
+                farmCount: parseInt(values[1]) || 0,
+                riceProduction: parseInt(values[7]) || 0, // 10a당 총 쌀 생산량
+                polishedRice: parseInt(values[4]) || 0, // 정곡 생산량
+                brownRice: parseInt(values[5]) || 0, // 현미 생산량
+                roughRice: parseInt(values[6]) || 0, // 조곡 생산량
+                
+                // 인구 통계
+                returnFarmers: parseInt(values[2]) || 0, // 귀농 인구
+                returnRatio: parseFloat(values[3]) || 0, // 귀농 비율
+                
+                // 경제 지표
+                overallScore: parseFloat(values[8]) || 0, // 종합 점수
+                distributionCount: parseInt(values[9]) || 0, // 유통망 수
+                processingCount: parseInt(values[10]) || 0, // 미곡처리장 수
+                
+                // 환경/인프라 지표
+                machineryCount: parseInt(values[11]) || 0, // 총 임대 농기계 수
+                waterCapacity: parseFloat(values[12]) || 0, // 총저수량
+                waterFacilities: parseFloat(values[13]) || 0, // 총 저수량 규모별
+                
+                // 지도 색상용 (종합 점수 사용)
+                industry: parseFloat(values[8]) || 0
             };
-        });
+        }
         
-        currentData = transformedData;
-        console.log('데이터 로드 완료:', Object.keys(currentData).length + '개 지역');
+        console.log('CSV 데이터 로드 완료:', Object.keys(currentData).length + '개 지역');
+        console.log('샘플 데이터:', Object.values(currentData)[0]);
         
     } catch (error) {
-        console.error('데이터 로드 실패:', error);
+        console.error('CSV 데이터 로드 실패:', error);
         // 실패 시 샘플 데이터 사용
         currentData = {
             '강원 고성군': {
-                industry: 172.1, production: 172.1, population: 0, economy: 0, environment: 0
-            },
-            '강원 동해시': {
-                industry: 172.1, production: 172.1, population: 0, economy: 0, environment: 0
-            },
-            '경남 창녕군': {
-                industry: 175.5, production: 175.5, population: 0, economy: 0, environment: 0
-            },
-            '전남 나주시': {
-                industry: 180.2, production: 180.2, population: 0, economy: 0, environment: 0
-            },
-            '충남 당진시': {
-                industry: 165.8, production: 165.8, population: 0, economy: 0, environment: 0
+                region: '강원 고성군',
+                farmCount: 1200,
+                riceProduction: 520,
+                polishedRice: 450,
+                brownRice: 480,
+                roughRice: 520,
+                returnFarmers: 45,
+                returnRatio: 3.75,
+                overallScore: 72.5,
+                distributionCount: 5,
+                processingCount: 3,
+                machineryCount: 85,
+                waterCapacity: 1500.5,
+                waterFacilities: 12,
+                industry: 72.5
             }
         };
     }
@@ -79,8 +123,9 @@ function initMap() {
     map.getContainer().style.backgroundColor = '#f8f9fa';
 }
 
-// 값에 따른 색상 반환 (개선된 버전)
-function getColor(value, scheme = 'blues') {
+// 값에 따른 색상 반환 (데이터 유형별 자동 색상)
+function getColor(value, dataType = 'sample') {
+    const scheme = dataTypeColorMap[dataType] || 'blues';
     const colors = colorSchemes[scheme];
     const allValues = Object.values(currentData).map(d => d.industry);
     
@@ -89,12 +134,9 @@ function getColor(value, scheme = 'blues') {
     const max = Math.max(...allValues);
     const min = Math.min(...allValues);
     
-    // 값이 몰려있는 경우를 위한 더 세밀한 구간 설정
-    // 137.6~197.1 범위를 9개 구간으로 나누되, 각 구간을 더 정확하게 분할
     const range = max - min;
     const stepSize = range / (colors.length - 1);
     
-    // 현재 값이 어느 구간에 속하는지 계산
     const step = Math.floor((value - min) / stepSize);
     const colorIndex = Math.max(0, Math.min(step, colors.length - 1));
     
@@ -106,15 +148,15 @@ function style(feature) {
     const regionName = feature.properties.CTP_KOR_NM || feature.properties.SIG_KOR_NM || feature.properties.name;
     const regionData = currentData[regionName];
     const value = regionData ? regionData.industry : 0;
-    const scheme = document.getElementById('colorScheme').value;
+    const dataType = document.getElementById('dataType').value;
     
     return {
-        fillColor: getColor(value, scheme),
+        fillColor: getColor(value, dataType),
         weight: 2,
         opacity: 1,
         color: '#ffffff',
         dashArray: '',
-        fillOpacity: regionData ? 1 : 0.3, // 데이터가 없는 지역은 투명도 낮춤
+        fillOpacity: regionData ? 1 : 0.3,
         stroke: true
     };
 }
@@ -137,10 +179,11 @@ function highlightFeature(e) {
     const regionName = layer.feature.properties.CTP_KOR_NM || layer.feature.properties.SIG_KOR_NM || layer.feature.properties.name;
     const data = currentData[regionName];
     
-    // 데이터가 있는 지역은 상세 정보, 없는 지역은 지역명만 표시
     let tooltipContent = `<strong>${regionName}</strong>`;
-    if (data && data.production > 0) {
-        tooltipContent += `<br>경작지 당 생산량: ${data.production} kg/ha`;
+    if (data && data.overallScore > 0) {
+        tooltipContent += `<br>종합 점수: ${data.overallScore}점`;
+        tooltipContent += `<br>농가 수: ${data.farmCount.toLocaleString()}개`;
+        tooltipContent += `<br>쌀 생산량: ${data.riceProduction} kg/10a`;
     } else {
         tooltipContent += `<br><em>데이터 없음</em>`;
     }
@@ -199,26 +242,21 @@ function closePanels() {
     const panelsOverlay = document.getElementById('data-panels-overlay');
     const regionInfoOverlay = document.getElementById('region-info-overlay');
     
-    // 먼저 애니메이션으로 숨기기
     regionInfoOverlay.classList.remove('show');
     
-    // 모든 패널에서 show 클래스 제거 (애니메이션 시작)
     document.querySelectorAll('.data-panel').forEach(panel => {
         panel.classList.remove('show');
     });
     
-    // 애니메이션 완료 후 완전히 숨기기 (300ms 후)
     setTimeout(() => {
         panelsOverlay.style.display = 'none';
         
-        // 차트 정리
         Object.values(charts).forEach(chart => {
             if (chart) chart.destroy();
         });
         charts = {};
     }, 300);
     
-    // 선택된 레이어 해제
     selectedLayers.forEach(layer => {
         geojsonLayer.resetStyle(layer);
     });
@@ -240,11 +278,13 @@ function updateRegionInfo() {
         const regionName = layer.feature.properties.CTP_KOR_NM || layer.feature.properties.SIG_KOR_NM || layer.feature.properties.name;
         const data = currentData[regionName];
         
-        if (data && data.production > 0) {
+        if (data && data.overallScore > 0) {
             summaryHTML += `
                 <div class="region-card ${index === 1 ? 'region-2' : ''}">
                     <h5>지역 ${index + 1}: ${regionName}</h5>
-                    <p>경작지당 생산량: ${data.production} kg/ha</p>
+                    <p>종합 점수: ${data.overallScore}점</p>
+                    <p>농가 수: ${data.farmCount.toLocaleString()}개</p>
+                    <p>귀농 인구: ${data.returnFarmers}명 (${data.returnRatio}%)</p>
                 </div>
             `;
         } else {
@@ -260,7 +300,6 @@ function updateRegionInfo() {
     regionSummary.innerHTML = summaryHTML;
     regionInfoOverlay.style.display = 'block';
     
-    // 애니메이션을 위한 약간의 지연
     setTimeout(() => {
         regionInfoOverlay.classList.add('show');
     }, 50);
@@ -271,16 +310,13 @@ function updateDataPanels() {
     const panelsOverlay = document.getElementById('data-panels-overlay');
     
     if (selectedLayers.length === 0) {
-        // 애니메이션으로 패널 숨기기
         document.querySelectorAll('.data-panel').forEach(panel => {
             panel.classList.remove('show');
         });
         
-        // 애니메이션 완료 후 완전히 숨기기
         setTimeout(() => {
             panelsOverlay.style.display = 'none';
             
-            // 차트 정리
             Object.values(charts).forEach(chart => {
                 if (chart) chart.destroy();
             });
@@ -293,28 +329,25 @@ function updateDataPanels() {
     const selectedRegions = selectedLayers.map(layer => {
         const regionName = layer.feature.properties.CTP_KOR_NM || layer.feature.properties.SIG_KOR_NM || layer.feature.properties.name;
         return { name: regionName, data: currentData[regionName] };
-    }).filter(region => region.data && region.data.production > 0);
+    }).filter(region => region.data && region.data.overallScore > 0);
     
-    // 패널 표시
     panelsOverlay.style.display = 'block';
     
-    // 애니메이션을 위한 약간의 지연
     setTimeout(() => {
         document.querySelectorAll('.data-panel').forEach(panel => {
             panel.classList.add('show');
         });
     }, 50);
     
-    // 차트 업데이트
     setTimeout(() => {
-        updateChart1(selectedRegions); // 산업 현황
-        updateChart2(selectedRegions); // 인구 통계
-        updateChart3(selectedRegions); // 경제 지표
-        updateChart4(selectedRegions); // 환경 지표
+        updateChart1(selectedRegions); // 산업 현황 (생산량)
+        updateChart2(selectedRegions); // 인구 통계 (농가/귀농)
+        updateChart3(selectedRegions); // 경제 지표 (유통/처리장)
+        updateChart4(selectedRegions); // 환경 지표 (인프라)
     }, 300);
 }
 
-// 차트 1: 산업 현황 (막대 차트)
+// 차트 1: 산업 현황 (쌀 생산량 종류별 비교)
 function updateChart1(regions) {
     const ctx = document.getElementById('chart-1').getContext('2d');
     
@@ -325,14 +358,30 @@ function updateChart1(regions) {
     if (regions.length === 0) return;
     
     const data = {
-        labels: regions.map(r => r.name.split(' ').pop()), // 지역명 축약
-        datasets: [{
-            label: '경작지당 생산량 (kg/ha)',
-            data: regions.map(r => r.data.production),
-            backgroundColor: ['#3498db', '#e74c3c'],
-            borderColor: ['#2980b9', '#c0392b'],
-            borderWidth: 2
-        }]
+        labels: regions.map(r => r.name.split(' ').pop()),
+        datasets: [
+            {
+                label: '정곡 (kg/10a)',
+                data: regions.map(r => r.data.polishedRice),
+                backgroundColor: '#3498db',
+                borderColor: '#2980b9',
+                borderWidth: 2
+            },
+            {
+                label: '현미 (kg/10a)',
+                data: regions.map(r => r.data.brownRice),
+                backgroundColor: '#2ecc71',
+                borderColor: '#27ae60',
+                borderWidth: 2
+            },
+            {
+                label: '조곡 (kg/10a)',
+                data: regions.map(r => r.data.roughRice),
+                backgroundColor: '#f39c12',
+                borderColor: '#e67e22',
+                borderWidth: 2
+            }
+        ]
     };
     
     charts.chart1 = new Chart(ctx, {
@@ -343,28 +392,28 @@ function updateChart1(regions) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: false
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        boxWidth: 10,
+                        font: { size: 10 }
+                    }
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 200,
-                    grid: {
-                        color: 'rgba(0,0,0,0.1)'
-                    }
+                    grid: { color: 'rgba(0,0,0,0.1)' }
                 },
                 x: {
-                    grid: {
-                        display: false
-                    }
+                    grid: { display: false }
                 }
             }
         }
     });
 }
 
-// 차트 2: 인구 통계 (도넛 차트)
+// 차트 2: 인구 통계 (농가 수 vs 귀농 인구)
 function updateChart2(regions) {
     const ctx = document.getElementById('chart-2').getContext('2d');
     
@@ -376,36 +425,66 @@ function updateChart2(regions) {
     
     const data = {
         labels: regions.map(r => r.name.split(' ').pop()),
-        datasets: [{
-            data: regions.map(r => r.data.production),
-            backgroundColor: ['#3498db', '#e74c3c'],
-            borderColor: ['#2980b9', '#c0392b'],
-            borderWidth: 2
-        }]
+        datasets: [
+            {
+                label: '농가 수',
+                data: regions.map(r => r.data.farmCount),
+                backgroundColor: '#3498db',
+                borderColor: '#2980b9',
+                borderWidth: 2,
+                yAxisID: 'y'
+            },
+            {
+                label: '귀농 인구',
+                data: regions.map(r => r.data.returnFarmers),
+                backgroundColor: '#e74c3c',
+                borderColor: '#c0392b',
+                borderWidth: 2,
+                yAxisID: 'y1'
+            }
+        ]
     };
     
     charts.chart2 = new Chart(ctx, {
-        type: 'doughnut',
+        type: 'bar',
         data: data,
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    position: 'bottom',
+                    display: true,
+                    position: 'top',
                     labels: {
                         boxWidth: 10,
-                        font: {
-                            size: 10
-                        }
+                        font: { size: 10 }
                     }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.1)' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    beginAtZero: true,
+                    grid: { drawOnChartArea: false }
+                },
+                x: {
+                    grid: { display: false }
                 }
             }
         }
     });
 }
 
-// 차트 3: 경제 지표 (선 차트)
+// 차트 3: 경제 지표 (유통망, 미곡처리장, 종합점수)
 function updateChart3(regions) {
     const ctx = document.getElementById('chart-3').getContext('2d');
     
@@ -416,87 +495,23 @@ function updateChart3(regions) {
     if (regions.length === 0) return;
     
     const data = {
-        labels: ['1Q', '2Q', '3Q', '4Q'],
+        labels: ['유통망 수', '미곡처리장 수', '종합점수'],
         datasets: regions.map((region, index) => ({
             label: region.name.split(' ').pop(),
-            data: [region.data.production - 10, region.data.production - 5, region.data.production, region.data.production + 3],
+            data: [
+                region.data.distributionCount,
+                region.data.processingCount,
+                region.data.overallScore
+            ],
             borderColor: index === 0 ? '#3498db' : '#e74c3c',
             backgroundColor: index === 0 ? 'rgba(52, 152, 219, 0.1)' : 'rgba(231, 76, 60, 0.1)',
             tension: 0.4,
-            pointRadius: 3,
-            pointHoverRadius: 5
+            pointRadius: 4,
+            pointHoverRadius: 6
         }))
     };
     
     charts.chart3 = new Chart(ctx, {
-        type: 'line',
-        data: data,
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: regions.length > 1,
-                    position: 'top',
-                    labels: {
-                        boxWidth: 10,
-                        font: {
-                            size: 10
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 200,
-                    grid: {
-                        color: 'rgba(0,0,0,0.1)'
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    }
-                }
-            }
-        }
-    });
-}
-
-// 차트 4: 환경 지표 (레이더 차트)
-function updateChart4(regions) {
-    const ctx = document.getElementById('chart-4').getContext('2d');
-    
-    if (charts.chart4) {
-        charts.chart4.destroy();
-    }
-    
-    if (regions.length === 0) return;
-    
-    const data = {
-        labels: ['생산량', '품질', '효율성', '지속성', '수익성'],
-        datasets: regions.map((region, index) => ({
-            label: region.name.split(' ').pop(),
-            data: [
-                region.data.production,
-                region.data.production - 5,
-                region.data.production + 3,
-                region.data.production - 2,
-                region.data.production + 5
-            ].map(val => Math.max(0, Math.min(200, val))), // 0-200 범위로 제한
-            borderColor: index === 0 ? '#3498db' : '#e74c3c',
-            backgroundColor: index === 0 ? 'rgba(52, 152, 219, 0.2)' : 'rgba(231, 76, 60, 0.2)',
-            pointBackgroundColor: index === 0 ? '#3498db' : '#e74c3c',
-            pointBorderColor: '#fff',
-            pointHoverBackgroundColor: '#fff',
-            pointHoverBorderColor: index === 0 ? '#3498db' : '#e74c3c',
-            pointRadius: 3,
-            pointHoverRadius: 5
-        }))
-    };
-    
-    charts.chart4 = new Chart(ctx, {
         type: 'radar',
         data: data,
         options: {
@@ -508,19 +523,85 @@ function updateChart4(regions) {
                     position: 'top',
                     labels: {
                         boxWidth: 10,
-                        font: {
-                            size: 10
-                        }
+                        font: { size: 10 }
                     }
                 }
             },
             scales: {
                 r: {
                     beginAtZero: true,
-                    max: 200,
-                    grid: {
-                        color: 'rgba(0,0,0,0.2)'
+                    grid: { color: 'rgba(0,0,0,0.2)' }
+                }
+            }
+        }
+    });
+}
+
+// 차트 4: 환경/인프라 지표 (농기계, 저수 시설)
+function updateChart4(regions) {
+    const ctx = document.getElementById('chart-4').getContext('2d');
+    
+    if (charts.chart4) {
+        charts.chart4.destroy();
+    }
+    
+    if (regions.length === 0) return;
+    
+    const data = {
+        labels: regions.map(r => r.name.split(' ').pop()),
+        datasets: [
+            {
+                label: '임대 농기계 수',
+                data: regions.map(r => r.data.machineryCount),
+                backgroundColor: '#27ae60',
+                borderColor: '#229954',
+                borderWidth: 2,
+                yAxisID: 'y'
+            },
+            {
+                label: '저수 시설 수',
+                data: regions.map(r => r.data.waterFacilities),
+                backgroundColor: '#3498db',
+                borderColor: '#2980b9',
+                borderWidth: 2,
+                yAxisID: 'y1'
+            }
+        ]
+    };
+    
+    charts.chart4 = new Chart(ctx, {
+        type: 'bar',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        boxWidth: 10,
+                        font: { size: 10 }
                     }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.1)' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    beginAtZero: true,
+                    grid: { drawOnChartArea: false }
+                },
+                x: {
+                    grid: { display: false }
                 }
             }
         }
@@ -539,7 +620,6 @@ function onEachFeature(feature, layer) {
 // GeoJSON 데이터 로드
 async function loadGeoJSON() {
     try {
-        // 로컬 GeoJSON 파일 경로
         const url = './map/skorea-mixed-2018-geo.json';
         
         const response = await fetch(url);
@@ -548,27 +628,21 @@ async function loadGeoJSON() {
         }
         const geoData = await response.json();
         
-        // 기존 레이어 제거
         if (geojsonLayer) {
             map.removeLayer(geojsonLayer);
         }
         
-        // 새 레이어 추가
         geojsonLayer = L.geoJSON(geoData, {
             style: style,
             onEachFeature: onEachFeature
         }).addTo(map);
         
-        // 로딩 표시 제거
         document.getElementById('loading').style.display = 'none';
-        
-        // 범례 업데이트
         updateLegend();
         
     } catch (error) {
         console.error('GeoJSON 로드 실패:', error);
         
-        // 샘플 GeoJSON 데이터로 대체
         const sampleGeoJSON = {
             "type": "FeatureCollection",
             "features": [
@@ -578,38 +652,6 @@ async function loadGeoJSON() {
                     "geometry": {
                         "type": "Polygon",
                         "coordinates": [[[128.0, 38.5], [128.1, 38.5], [128.1, 38.6], [128.0, 38.6], [128.0, 38.5]]]
-                    }
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"CTP_KOR_NM": "강원 동해시"},
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [[[129.0, 37.5], [129.1, 37.5], [129.1, 37.6], [129.0, 37.6], [129.0, 37.5]]]
-                    }
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"CTP_KOR_NM": "경남 창녕군"},
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [[[128.5, 35.5], [128.6, 35.5], [128.6, 35.6], [128.5, 35.6], [128.5, 35.5]]]
-                    }
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"CTP_KOR_NM": "전남 나주시"},
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [[[126.7, 35.0], [126.8, 35.0], [126.8, 35.1], [126.7, 35.1], [126.7, 35.0]]]
-                    }
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"CTP_KOR_NM": "충남 당진시"},
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [[[126.6, 36.9], [126.7, 36.9], [126.7, 37.0], [126.6, 37.0], [126.6, 36.9]]]
                     }
                 }
             ]
@@ -625,9 +667,10 @@ async function loadGeoJSON() {
     }
 }
 
-// 범례 업데이트 (개선된 버전)
+// 범례 업데이트
 function updateLegend() {
-    const scheme = document.getElementById('colorScheme').value;
+    const dataType = document.getElementById('dataType').value;
+    const scheme = dataTypeColorMap[dataType] || 'blues';
     const colors = colorSchemes[scheme];
     const allValues = Object.values(currentData).map(d => d.industry);
     
@@ -640,7 +683,6 @@ function updateLegend() {
     const legendContent = document.getElementById('legend-content');
     legendContent.innerHTML = '';
     
-    // 가장 높은 값부터 낮은 값 순으로 표시
     for (let i = colors.length - 1; i >= 0; i--) {
         const minValue = min + (stepSize * i);
         const maxValue = min + (stepSize * (i + 1));
@@ -649,15 +691,14 @@ function updateLegend() {
         legendItem.className = 'legend-item';
         
         if (i === colors.length - 1) {
-            // 최고값 구간
             legendItem.innerHTML = `
                 <div class="legend-color" style="background-color: ${colors[i]}"></div>
-                <span>${minValue.toFixed(1)} - ${max.toFixed(1)} kg/ha</span>
+                <span>${minValue.toFixed(1)} - ${max.toFixed(1)} 점</span>
             `;
         } else {
             legendItem.innerHTML = `
                 <div class="legend-color" style="background-color: ${colors[i]}"></div>
-                <span>${minValue.toFixed(1)} - ${maxValue.toFixed(1)} kg/ha</span>
+                <span>${minValue.toFixed(1)} - ${maxValue.toFixed(1)} 점</span>
             `;
         }
         
@@ -665,28 +706,13 @@ function updateLegend() {
     }
 }
 
-// 데이터 업데이트
-async function updateData() {
-    // 데이터 다시 로드
-    await loadProductionData();
-    
-    // 패널 닫기
-    closePanels();
-    
-    if (geojsonLayer) {
-        geojsonLayer.setStyle(style);
-        bringSelectedLayersToFront();
-    }
-    
-    updateLegend();
-}
-
-// 이벤트 리스너 등록
-document.getElementById('dataType').addEventListener('change', updateData);
-document.getElementById('colorScheme').addEventListener('change', () => {
+// 데이터 업데이트 (색상과 범례만 변경, 데이터 재로드 없음)
+function updateData() {
+    // 지도 스타일 업데이트 (색상만 변경)
     if (geojsonLayer) {
         geojsonLayer.setStyle(style);
         
+        // 선택된 레이어들 스타일 다시 적용
         selectedLayers.forEach(layer => {
             layer.setStyle({
                 weight: 4,
@@ -699,12 +725,20 @@ document.getElementById('colorScheme').addEventListener('change', () => {
         
         bringSelectedLayersToFront();
     }
+    
+    // 범례만 업데이트 (색상 변경)
     updateLegend();
-});
+    
+    // 차트 데이터는 동일하므로 다시 로드하지 않음
+    // 선택된 지역과 패널 내용은 그대로 유지
+}
+
+// 이벤트 리스너 등록
+document.getElementById('dataType').addEventListener('change', updateData);
 
 // 초기화
 document.addEventListener('DOMContentLoaded', async function() {
-    await loadProductionData(); // 데이터 먼저 로드
+    await loadCSVData();
     initMap();
     loadGeoJSON();
 });
