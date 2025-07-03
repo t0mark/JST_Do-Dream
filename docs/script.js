@@ -13,25 +13,55 @@ const colorSchemes = {
     oranges: ['#fff3e0', '#ffe0b2', '#ffcc80', '#ffb74d', '#ffa726', '#ff9800', '#fb8c00', '#f57c00', '#ef6c00']
 };
 
-// 샘플 데이터 (각 지역별로 4개 지표)
-const sampleData = {
-    '서울특별시 강남구': {
-        industry: 85, population: 561000, economy: 92, environment: 78,
-        industryDetail: [30, 25, 20, 15, 10], populationDetail: [20, 25, 30, 25]
-    },
-    '서울특별시 강동구': {
-        industry: 72, population: 440000, economy: 75, environment: 82,
-        industryDetail: [25, 20, 25, 15, 15], populationDetail: [15, 20, 35, 30]
-    },
-    '부산광역시 해운대구': {
-        industry: 78, population: 410000, economy: 81, environment: 85,
-        industryDetail: [20, 30, 20, 20, 10], populationDetail: [10, 15, 30, 45]
-    },
-    '경기도 성남시': {
-        industry: 79, population: 950000, economy: 88, environment: 74,
-        industryDetail: [35, 20, 20, 15, 10], populationDetail: [25, 30, 25, 20]
+// 데이터 로드 함수
+async function loadProductionData() {
+    try {
+        const response = await fetch('./data/논벼_경작지당_생산량.json');
+        if (!response.ok) {
+            throw new Error(`데이터 파일을 찾을 수 없습니다: 논벼_경작지당_생산량.json`);
+        }
+        const rawData = await response.json();
+        
+        // 데이터 변환: 배열을 객체로 변환하고 구조 통일
+        const transformedData = {};
+        rawData.forEach(item => {
+            const regionName = item["지역"];
+            const production = item["경작지 당 생산량 [kg/ha]"];
+            
+            transformedData[regionName] = {
+                industry: production, // 색상 매핑용
+                production: production,
+                population: 0, // 기본값
+                economy: 0, // 기본값
+                environment: 0 // 기본값
+            };
+        });
+        
+        currentData = transformedData;
+        console.log('데이터 로드 완료:', Object.keys(currentData).length + '개 지역');
+        
+    } catch (error) {
+        console.error('데이터 로드 실패:', error);
+        // 실패 시 샘플 데이터 사용
+        currentData = {
+            '강원 고성군': {
+                industry: 172.1, production: 172.1, population: 0, economy: 0, environment: 0
+            },
+            '강원 동해시': {
+                industry: 172.1, production: 172.1, population: 0, economy: 0, environment: 0
+            },
+            '경남 창녕군': {
+                industry: 175.5, production: 175.5, population: 0, economy: 0, environment: 0
+            },
+            '전남 나주시': {
+                industry: 180.2, production: 180.2, population: 0, economy: 0, environment: 0
+            },
+            '충남 당진시': {
+                industry: 165.8, production: 165.8, population: 0, economy: 0, environment: 0
+            }
+        };
     }
-};
+}
 
 // 지도 초기화
 function initMap() {
@@ -49,25 +79,33 @@ function initMap() {
     map.getContainer().style.backgroundColor = '#f8f9fa';
 }
 
-// 값에 따른 색상 반환
+// 값에 따른 색상 반환 (개선된 버전)
 function getColor(value, scheme = 'blues') {
     const colors = colorSchemes[scheme];
     const allValues = Object.values(currentData).map(d => d.industry);
+    
+    if (allValues.length === 0) return colors[4];
+    
     const max = Math.max(...allValues);
     const min = Math.min(...allValues);
+    
+    // 값이 몰려있는 경우를 위한 더 세밀한 구간 설정
+    // 137.6~197.1 범위를 9개 구간으로 나누되, 각 구간을 더 정확하게 분할
     const range = max - min;
+    const stepSize = range / (colors.length - 1);
     
-    if (range === 0) return colors[4];
+    // 현재 값이 어느 구간에 속하는지 계산
+    const step = Math.floor((value - min) / stepSize);
+    const colorIndex = Math.max(0, Math.min(step, colors.length - 1));
     
-    const normalized = (value - min) / range;
-    const index = Math.floor(normalized * (colors.length - 1));
-    return colors[Math.max(0, Math.min(index, colors.length - 1))];
+    return colors[colorIndex];
 }
 
 // GeoJSON 스타일 함수
 function style(feature) {
     const regionName = feature.properties.CTP_KOR_NM || feature.properties.SIG_KOR_NM || feature.properties.name;
-    const value = currentData[regionName]?.industry || 0;
+    const regionData = currentData[regionName];
+    const value = regionData ? regionData.industry : 0;
     const scheme = document.getElementById('colorScheme').value;
     
     return {
@@ -76,7 +114,7 @@ function style(feature) {
         opacity: 1,
         color: '#ffffff',
         dashArray: '',
-        fillOpacity: 1,
+        fillOpacity: regionData ? 1 : 0.3, // 데이터가 없는 지역은 투명도 낮춤
         stroke: true
     };
 }
@@ -101,8 +139,8 @@ function highlightFeature(e) {
     
     // 데이터가 있는 지역은 상세 정보, 없는 지역은 지역명만 표시
     let tooltipContent = `<strong>${regionName}</strong>`;
-    if (data) {
-        tooltipContent += `<br>산업지수: ${data.industry}<br>인구: ${data.population.toLocaleString()}명`;
+    if (data && data.production > 0) {
+        tooltipContent += `<br>경작지 당 생산량: ${data.production} kg/ha`;
     } else {
         tooltipContent += `<br><em>데이터 없음</em>`;
     }
@@ -202,12 +240,18 @@ function updateRegionInfo() {
         const regionName = layer.feature.properties.CTP_KOR_NM || layer.feature.properties.SIG_KOR_NM || layer.feature.properties.name;
         const data = currentData[regionName];
         
-        if (data) {
+        if (data && data.production > 0) {
             summaryHTML += `
                 <div class="region-card ${index === 1 ? 'region-2' : ''}">
                     <h5>지역 ${index + 1}: ${regionName}</h5>
-                    <p>산업지수: ${data.industry} | 인구: ${data.population.toLocaleString()}명</p>
-                    <p>경제지표: ${data.economy} | 환경지표: ${data.environment}</p>
+                    <p>경작지당 생산량: ${data.production} kg/ha</p>
+                </div>
+            `;
+        } else {
+            summaryHTML += `
+                <div class="region-card ${index === 1 ? 'region-2' : ''}">
+                    <h5>지역 ${index + 1}: ${regionName}</h5>
+                    <p>데이터 없음</p>
                 </div>
             `;
         }
@@ -249,7 +293,7 @@ function updateDataPanels() {
     const selectedRegions = selectedLayers.map(layer => {
         const regionName = layer.feature.properties.CTP_KOR_NM || layer.feature.properties.SIG_KOR_NM || layer.feature.properties.name;
         return { name: regionName, data: currentData[regionName] };
-    }).filter(region => region.data);
+    }).filter(region => region.data && region.data.production > 0);
     
     // 패널 표시
     panelsOverlay.style.display = 'block';
@@ -283,8 +327,8 @@ function updateChart1(regions) {
     const data = {
         labels: regions.map(r => r.name.split(' ').pop()), // 지역명 축약
         datasets: [{
-            label: '산업 지수',
-            data: regions.map(r => r.data.industry),
+            label: '경작지당 생산량 (kg/ha)',
+            data: regions.map(r => r.data.production),
             backgroundColor: ['#3498db', '#e74c3c'],
             borderColor: ['#2980b9', '#c0392b'],
             borderWidth: 2
@@ -305,7 +349,7 @@ function updateChart1(regions) {
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 100,
+                    max: 200,
                     grid: {
                         color: 'rgba(0,0,0,0.1)'
                     }
@@ -333,7 +377,7 @@ function updateChart2(regions) {
     const data = {
         labels: regions.map(r => r.name.split(' ').pop()),
         datasets: [{
-            data: regions.map(r => r.data.population),
+            data: regions.map(r => r.data.production),
             backgroundColor: ['#3498db', '#e74c3c'],
             borderColor: ['#2980b9', '#c0392b'],
             borderWidth: 2
@@ -375,7 +419,7 @@ function updateChart3(regions) {
         labels: ['1Q', '2Q', '3Q', '4Q'],
         datasets: regions.map((region, index) => ({
             label: region.name.split(' ').pop(),
-            data: [region.data.economy - 10, region.data.economy - 5, region.data.economy, region.data.economy + 3],
+            data: [region.data.production - 10, region.data.production - 5, region.data.production, region.data.production + 3],
             borderColor: index === 0 ? '#3498db' : '#e74c3c',
             backgroundColor: index === 0 ? 'rgba(52, 152, 219, 0.1)' : 'rgba(231, 76, 60, 0.1)',
             tension: 0.4,
@@ -405,7 +449,7 @@ function updateChart3(regions) {
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 100,
+                    max: 200,
                     grid: {
                         color: 'rgba(0,0,0,0.1)'
                     }
@@ -431,16 +475,16 @@ function updateChart4(regions) {
     if (regions.length === 0) return;
     
     const data = {
-        labels: ['대기질', '수질', '폐기물', '소음', '녹지'],
+        labels: ['생산량', '품질', '효율성', '지속성', '수익성'],
         datasets: regions.map((region, index) => ({
             label: region.name.split(' ').pop(),
             data: [
-                region.data.environment,
-                region.data.environment - 5,
-                region.data.environment + 3,
-                region.data.environment - 2,
-                region.data.environment + 5
-            ],
+                region.data.production,
+                region.data.production - 5,
+                region.data.production + 3,
+                region.data.production - 2,
+                region.data.production + 5
+            ].map(val => Math.max(0, Math.min(200, val))), // 0-200 범위로 제한
             borderColor: index === 0 ? '#3498db' : '#e74c3c',
             backgroundColor: index === 0 ? 'rgba(52, 152, 219, 0.2)' : 'rgba(231, 76, 60, 0.2)',
             pointBackgroundColor: index === 0 ? '#3498db' : '#e74c3c',
@@ -473,7 +517,7 @@ function updateChart4(regions) {
             scales: {
                 r: {
                     beginAtZero: true,
-                    max: 100,
+                    max: 200,
                     grid: {
                         color: 'rgba(0,0,0,0.2)'
                     }
@@ -530,34 +574,42 @@ async function loadGeoJSON() {
             "features": [
                 {
                     "type": "Feature",
-                    "properties": {"CTP_KOR_NM": "서울특별시 강남구"},
+                    "properties": {"CTP_KOR_NM": "강원 고성군"},
                     "geometry": {
                         "type": "Polygon",
-                        "coordinates": [[[127.0, 37.5], [127.1, 37.5], [127.1, 37.6], [127.0, 37.6], [127.0, 37.5]]]
+                        "coordinates": [[[128.0, 38.5], [128.1, 38.5], [128.1, 38.6], [128.0, 38.6], [128.0, 38.5]]]
                     }
                 },
                 {
                     "type": "Feature",
-                    "properties": {"CTP_KOR_NM": "서울특별시 강동구"},
+                    "properties": {"CTP_KOR_NM": "강원 동해시"},
                     "geometry": {
                         "type": "Polygon",
-                        "coordinates": [[[127.1, 37.5], [127.2, 37.5], [127.2, 37.6], [127.1, 37.6], [127.1, 37.5]]]
+                        "coordinates": [[[129.0, 37.5], [129.1, 37.5], [129.1, 37.6], [129.0, 37.6], [129.0, 37.5]]]
                     }
                 },
                 {
                     "type": "Feature",
-                    "properties": {"CTP_KOR_NM": "부산광역시 해운대구"},
+                    "properties": {"CTP_KOR_NM": "경남 창녕군"},
                     "geometry": {
                         "type": "Polygon",
-                        "coordinates": [[[129.1, 35.1], [129.2, 35.1], [129.2, 35.2], [129.1, 35.2], [129.1, 35.1]]]
+                        "coordinates": [[[128.5, 35.5], [128.6, 35.5], [128.6, 35.6], [128.5, 35.6], [128.5, 35.5]]]
                     }
                 },
                 {
                     "type": "Feature",
-                    "properties": {"CTP_KOR_NM": "경기도 성남시"},
+                    "properties": {"CTP_KOR_NM": "전남 나주시"},
                     "geometry": {
                         "type": "Polygon",
-                        "coordinates": [[[127.1, 37.4], [127.2, 37.4], [127.2, 37.5], [127.1, 37.5], [127.1, 37.4]]]
+                        "coordinates": [[[126.7, 35.0], [126.8, 35.0], [126.8, 35.1], [126.7, 35.1], [126.7, 35.0]]]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"CTP_KOR_NM": "충남 당진시"},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[126.6, 36.9], [126.7, 36.9], [126.7, 37.0], [126.6, 37.0], [126.6, 36.9]]]
                     }
                 }
             ]
@@ -573,34 +625,50 @@ async function loadGeoJSON() {
     }
 }
 
-// 범례 업데이트
+// 범례 업데이트 (개선된 버전)
 function updateLegend() {
     const scheme = document.getElementById('colorScheme').value;
     const colors = colorSchemes[scheme];
     const allValues = Object.values(currentData).map(d => d.industry);
+    
+    if (allValues.length === 0) return;
+    
     const max = Math.max(...allValues);
     const min = Math.min(...allValues);
-    const range = max - min;
+    const stepSize = (max - min) / (colors.length - 1);
     
     const legendContent = document.getElementById('legend-content');
     legendContent.innerHTML = '';
     
+    // 가장 높은 값부터 낮은 값 순으로 표시
     for (let i = colors.length - 1; i >= 0; i--) {
-        const value = min + (range * i / (colors.length - 1));
+        const minValue = min + (stepSize * i);
+        const maxValue = min + (stepSize * (i + 1));
+        
         const legendItem = document.createElement('div');
         legendItem.className = 'legend-item';
-        legendItem.innerHTML = `
-            <div class="legend-color" style="background-color: ${colors[i]}"></div>
-            <span>${value.toFixed(1)}</span>
-        `;
+        
+        if (i === colors.length - 1) {
+            // 최고값 구간
+            legendItem.innerHTML = `
+                <div class="legend-color" style="background-color: ${colors[i]}"></div>
+                <span>${minValue.toFixed(1)} - ${max.toFixed(1)} kg/ha</span>
+            `;
+        } else {
+            legendItem.innerHTML = `
+                <div class="legend-color" style="background-color: ${colors[i]}"></div>
+                <span>${minValue.toFixed(1)} - ${maxValue.toFixed(1)} kg/ha</span>
+            `;
+        }
+        
         legendContent.appendChild(legendItem);
     }
 }
 
 // 데이터 업데이트
-function updateData() {
-    const dataType = document.getElementById('dataType').value;
-    currentData = sampleData;
+async function updateData() {
+    // 데이터 다시 로드
+    await loadProductionData();
     
     // 패널 닫기
     closePanels();
@@ -635,8 +703,8 @@ document.getElementById('colorScheme').addEventListener('change', () => {
 });
 
 // 초기화
-document.addEventListener('DOMContentLoaded', function() {
-    currentData = sampleData;
+document.addEventListener('DOMContentLoaded', async function() {
+    await loadProductionData(); // 데이터 먼저 로드
     initMap();
     loadGeoJSON();
 });
