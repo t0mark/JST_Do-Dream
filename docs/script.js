@@ -5,7 +5,13 @@ let currentData = {};
 let selectedLayers = [];
 let charts = {};
 let rankingMainChart = null;
+let simulationChart = null;
 let isRankingView = false;
+let isSimulationView = false;
+
+// 시뮬레이션 관련 변수
+let jeonjuData = null;
+let simulationData = {};
 
 // 색상 스킴 정의 (데이터 유형별)
 const colorSchemes = {
@@ -108,7 +114,16 @@ async function loadCSVData() {
                 // 지도 색상용 (종합 점수 사용)
                 industry: parseFloat(values[8]) || 0
             };
+            
+            // 만약 종합 점수가 1보다 크면 100으로 나누어 0~1 범위로 변환
+            if (currentData[regionName].overallScore > 1) {
+                currentData[regionName].overallScore = currentData[regionName].overallScore / 100;
+                currentData[regionName].industry = currentData[regionName].overallScore;
+            }
         }
+        
+        // 전주시 데이터 찾기
+        findJeonjuData();
         
         console.log('CSV 데이터 로드 완료:', Object.keys(currentData).length + '개 지역');
         console.log('샘플 데이터:', Object.values(currentData)[0]);
@@ -126,16 +141,93 @@ async function loadCSVData() {
                 roughRice: 520,
                 returnFarmers: 45,
                 returnRatio: 3.75,
-                overallScore: 72.5,
+                overallScore: 0.7250,
                 distributionCount: 5,
                 processingCount: 3,
                 machineryCount: 85,
                 waterCapacity: 1500.5,
                 waterFacilities: 12,
-                industry: 72.5
+                industry: 0.7250
             }
         };
     }
+}
+
+// 전주시 데이터 찾기
+function findJeonjuData() {
+    // 전주시 또는 전북 전주시 등으로 검색
+    const jeonjuKeys = Object.keys(currentData).filter(key => 
+        key.includes('전주') || key.includes('전북 전주')
+    );
+    
+    if (jeonjuKeys.length > 0) {
+        jeonjuData = currentData[jeonjuKeys[0]];
+        console.log('전주시 데이터 발견:', jeonjuKeys[0], jeonjuData);
+    } else {
+        // 전주시 데이터가 없으면 샘플 데이터 생성
+        jeonjuData = {
+            region: '전북 전주시',
+            farmCount: 3500,
+            riceProduction: 520,
+            polishedRice: 450,
+            brownRice: 480,
+            roughRice: 520,
+            returnFarmers: 120,
+            returnRatio: 3.4,
+            overallScore: 0.7580,
+            distributionCount: 15,
+            processingCount: 8,
+            machineryCount: 180,
+            waterCapacity: 2500,
+            waterFacilities: 25,
+            industry: 0.7580
+        };
+        console.log('전주시 데이터 없음 - 샘플 데이터 사용');
+    }
+    
+    // 시뮬레이션 데이터 초기화
+    simulationData = { ...jeonjuData };
+}
+
+// 3년 후 예상 점수 계산 함수
+function calculate3YearProjectedScore(data) {
+    // 각 지표를 정규화하고 가중치를 적용 (미래 예측 모델)
+    const weights = {
+        farmCount: 0.20,        // 농가 수 - 20%
+        returnFarmers: 0.10,    // 귀농 인구 - 10%
+        riceProduction: 0.25,   // 쌀 생산량 - 25%
+        distributionCount: 0.15, // 유통망 수 - 15%
+        processingCount: 0.10,   // 미곡처리장 수 - 10%
+        machineryCount: 0.10,    // 농기계 수 - 10%
+        waterFacilities: 0.10    // 저수 시설 수 - 10%
+    };
+    
+    // 정규화를 위한 기준값들 (3년 후 예상 최대값)
+    const maxValues = {
+        farmCount: 10000,
+        returnFarmers: 500,
+        riceProduction: 700,
+        distributionCount: 50,
+        processingCount: 30,
+        machineryCount: 500,
+        waterFacilities: 100
+    };
+    
+    let score = 0;
+    
+    // 각 지표를 정규화하고 가중치 적용
+    Object.keys(weights).forEach(key => {
+        if (data[key] !== undefined && maxValues[key] > 0) {
+            const normalizedValue = Math.min(data[key] / maxValues[key], 1);
+            score += normalizedValue * weights[key];
+        }
+    });
+    
+    // 3년 간 성장률 반영 (약간의 보너스 점수 추가)
+    const growthBonus = 0.02; // 2% 성장 반영 (보수적 추정)
+    score = Math.min(score * (1 + growthBonus), 1);
+    
+    return Math.round(score * 10000) / 10000; // 소수점 4자리로 0~1 범위
 }
 
 // 지도 초기화
@@ -215,7 +307,7 @@ function highlightFeature(e) {
     if (data && data.industry > 0) {
         switch (dataType) {
             case 'overall':
-                tooltipContent += `<br>종합 점수: ${data.overallScore}점`;
+                tooltipContent += `<br>종합 점수: ${data.overallScore.toFixed(4)}`;
                 break;
             case 'production':
                 tooltipContent += `<br>쌀 생산량: ${data.riceProduction} kg/10a`;
@@ -344,7 +436,7 @@ function updateRegionInfo() {
             let detailInfo = '';
             switch (dataType) {
                 case 'overall':
-                    detailInfo = `종합 점수: ${data.overallScore}점<br>농가 수: ${data.farmCount.toLocaleString()}개`;
+                    detailInfo = `종합 점수: ${data.overallScore.toFixed(4)}<br>농가 수: ${data.farmCount.toLocaleString()}개`;
                     break;
                 case 'production':
                     detailInfo = `쌀 생산량: ${data.riceProduction} kg/10a<br>정곡: ${data.polishedRice} kg/10a`;
@@ -956,6 +1048,275 @@ function getRankingData() {
     };
 }
 
+// 1등 지역 정보 가져오기
+function getTopRegionInfo() {
+    const sortedRegions = Object.entries(currentData)
+        .filter(([regionName, data]) => data.overallScore && data.overallScore > 0)
+        .sort((a, b) => b[1].overallScore - a[1].overallScore);
+    
+    if (sortedRegions.length > 0) {
+        const [topRegionName, topRegionData] = sortedRegions[0];
+        return {
+            name: topRegionName,
+            score: topRegionData.overallScore
+        };
+    }
+    
+    return {
+        name: '1위 지역',
+        score: 1.0000
+    };
+}
+// 전주시 현재 순위 계산
+function getJeonjuRank(score = null) {
+    const scoreToUse = score || jeonjuData.overallScore;
+    const sortedRegions = Object.entries(currentData)
+        .filter(([regionName, data]) => data.overallScore && data.overallScore > 0)
+        .sort((a, b) => b[1].overallScore - a[1].overallScore);
+    
+    // 점수 기준으로 순위 계산
+    let rank = 1;
+    for (const [regionName, data] of sortedRegions) {
+        if (data.overallScore > scoreToUse) {
+            rank++;
+        } else {
+            break;
+        }
+    }
+    
+    return rank;
+}
+
+// 시뮬레이션 슬라이더 초기화
+function initializeSliders() {
+    if (!jeonjuData) return;
+    
+    const sliders = [
+        { id: 'farmCount', value: jeonjuData.farmCount },
+        { id: 'returnFarmers', value: jeonjuData.returnFarmers },
+        { id: 'riceProduction', value: jeonjuData.riceProduction },
+        { id: 'distributionCount', value: jeonjuData.distributionCount },
+        { id: 'processingCount', value: jeonjuData.processingCount },
+        { id: 'machineryCount', value: jeonjuData.machineryCount },
+        { id: 'waterFacilities', value: jeonjuData.waterFacilities }
+    ];
+    
+    sliders.forEach(({ id, value }) => {
+        const slider = document.getElementById(`slider-${id}`);
+        const valueDisplay = document.getElementById(`value-${id}`);
+        
+        if (slider && valueDisplay) {
+            slider.value = value;
+            valueDisplay.textContent = value;
+            
+            // 슬라이더 이벤트 리스너
+            slider.addEventListener('input', (e) => {
+                const newValue = parseInt(e.target.value);
+                valueDisplay.textContent = newValue;
+                simulationData[id] = newValue;
+                updateSimulationScores();
+            });
+        }
+    });
+}
+
+// 시뮬레이션 점수 업데이트
+function updateSimulationScores() {
+    if (!jeonjuData) return;
+    
+    const currentScore = jeonjuData.overallScore;
+    const predictedScore = calculate3YearProjectedScore(simulationData);
+    const difference = predictedScore - currentScore;
+    
+    // 점수 표시 업데이트
+    document.getElementById('current-score').textContent = currentScore.toFixed(4);
+    document.getElementById('predicted-score').textContent = predictedScore.toFixed(4);
+    
+    const differenceElement = document.getElementById('score-difference');
+    differenceElement.textContent = (difference >= 0 ? '+' : '') + difference.toFixed(4);
+    differenceElement.style.color = difference >= 0 ? '#27ae60' : '#e74c3c';
+    
+    // 순위 업데이트
+    const currentRank = getJeonjuRank();
+    const predictedRank = getJeonjuRank(predictedScore);
+    const topRegionInfo = getTopRegionInfo();
+    
+    document.getElementById('current-rank').textContent = currentRank;
+    document.getElementById('predicted-rank').textContent = predictedRank;
+    document.getElementById('predicted-rank').style.color = predictedRank < currentRank ? '#27ae60' : (predictedRank > currentRank ? '#e74c3c' : '#2c3e50');
+    
+    // 1등과의 격차 정보 업데이트
+    const gapToFirst = topRegionInfo.score - predictedScore;
+    const gapElement = document.getElementById('gap-to-first');
+    if (gapElement) {
+        gapElement.textContent = gapToFirst.toFixed(4);
+        gapElement.style.color = gapToFirst <= 0.01 ? '#27ae60' : '#e74c3c';
+    }
+    
+    const topRegionElement = document.getElementById('top-region-name');
+    if (topRegionElement) {
+        topRegionElement.textContent = topRegionInfo.name;
+    }
+    
+    // 차트 업데이트 (부드러운 애니메이션)
+    updateSimulationChart();
+}
+
+// 시뮬레이션 차트 생성 (초기 한 번만)
+function createSimulationChart() {
+    const ctx = document.getElementById('simulation-chart').getContext('2d');
+    
+    const topRegionInfo = getTopRegionInfo();
+    const currentScore = jeonjuData.overallScore;
+    const predictedScore = calculate3YearProjectedScore(simulationData);
+    
+    simulationChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [`1등: ${topRegionInfo.name.split(' ').pop()}`, '현재 전주시 (2024)', '3년 후 목표 (2027)'],
+            datasets: [{
+                label: '종합 점수',
+                data: [topRegionInfo.score, currentScore, predictedScore],
+                backgroundColor: ['#f39c12', '#3498db', '#27ae60'],
+                borderColor: ['#e67e22', '#2980b9', '#229954'],
+                borderWidth: 2,
+                borderRadius: 8,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 750,
+                easing: 'easeInOutQuart'
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 12
+                    },
+                    padding: 10,
+                    cornerRadius: 6,
+                    callbacks: {
+                        label: function(context) {
+                            return `점수: ${context.parsed.y.toFixed(4)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 1,
+                    grid: {
+                        color: 'rgba(0,0,0,0.1)',
+                        lineWidth: 1
+                    },
+                    ticks: {
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        },
+                        color: '#2c3e50',
+                        callback: function(value) {
+                            return value.toFixed(4);
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: '종합 점수 (0~1)',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        color: '#2c3e50'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            size: 11,
+                            weight: 'bold'
+                        },
+                        color: '#2c3e50',
+                        maxRotation: 45
+                    }
+                }
+            },
+            layout: {
+                padding: {
+                    top: 10,
+                    bottom: 10,
+                    left: 10,
+                    right: 10
+                }
+            }
+        }
+    });
+}
+
+// 시뮬레이션 차트 데이터 업데이트 (자연스러운 애니메이션)
+function updateSimulationChart() {
+    if (!simulationChart) {
+        createSimulationChart();
+        return;
+    }
+    
+    const topRegionInfo = getTopRegionInfo();
+    const currentScore = jeonjuData.overallScore;
+    const predictedScore = calculate3YearProjectedScore(simulationData);
+    
+    // 라벨 업데이트 (1등 지역이 바뀔 수 있으므로)
+    simulationChart.data.labels = [`1등: ${topRegionInfo.name.split(' ').pop()}`, '현재 전주시 (2024)', '3년 후 목표 (2027)'];
+    
+    // 데이터만 업데이트하고 차트를 다시 그리기
+    simulationChart.data.datasets[0].data = [topRegionInfo.score, currentScore, predictedScore];
+    
+    // 3년 후 점수에 따라 색상 동적 변경
+    const difference = predictedScore - currentScore;
+    if (difference > 0) {
+        simulationChart.data.datasets[0].backgroundColor[2] = '#27ae60'; // 녹색 (증가)
+        simulationChart.data.datasets[0].borderColor[2] = '#229954';
+    } else if (difference < 0) {
+        simulationChart.data.datasets[0].backgroundColor[2] = '#e74c3c'; // 빨강 (감소)
+        simulationChart.data.datasets[0].borderColor[2] = '#c0392b';
+    } else {
+        simulationChart.data.datasets[0].backgroundColor[2] = '#95a5a6'; // 회색 (변화없음)
+        simulationChart.data.datasets[0].borderColor[2] = '#7f8c8d';
+    }
+    
+    // 1등과의 격차에 따른 시각적 피드백
+    const gapToFirst = topRegionInfo.score - predictedScore;
+    if (gapToFirst <= 0.01) { // 1등과 거의 비슷하면
+        simulationChart.data.datasets[0].backgroundColor[2] = '#9b59b6'; // 보라색 (최고 수준)
+        simulationChart.data.datasets[0].borderColor[2] = '#8e44ad';
+    }
+    
+    // 부드러운 애니메이션으로 업데이트
+    simulationChart.update('active');
+}
+
+// 슬라이더 리셋
+function resetSliders() {
+    simulationData = { ...jeonjuData };
+    initializeSliders();
+    updateSimulationScores();
+}
+
 // 메인 순위 차트 생성 (지도 영역에 크게 표시) - 수정된 부분
 function createRankingChart() {
     const ctx = document.getElementById('ranking-main-chart').getContext('2d');
@@ -1046,7 +1407,7 @@ function createRankingChart() {
                             return `${actualRank}위: ${rankingData[index][0]}`;
                         },
                         label: function(context) {
-                            return `종합 점수: ${context.parsed.y.toFixed(4)}점`;
+                            return `종합 점수: ${context.parsed.y.toFixed(4)}`;
                         }
                     }
                 }
@@ -1054,7 +1415,7 @@ function createRankingChart() {
             scales: {
                 y: {
                     min: yAxisMin,
-                    max: yAxisMax,
+                    max: Math.min(yAxisMax, 1),
                     grid: {
                         color: 'rgba(0,0,0,0.1)',
                         lineWidth: 1
@@ -1071,7 +1432,7 @@ function createRankingChart() {
                     },
                     title: {
                         display: true,
-                        text: '종합 점수',
+                        text: '종합 점수 (0~1)',
                         font: {
                             size: 16,
                             weight: 'bold'
@@ -1131,7 +1492,7 @@ function updateRankingDetails(rankingInfo, actualRanks) {
             <div class="ranking-item ${isJeonju ? 'jeonju' : ''}">
                 <span class="ranking-number">${rankGroup}${actualRank}위</span>
                 <span class="ranking-region">${regionName}</span>
-                <span class="ranking-score">${data.overallScore.toFixed(4)}점</span>
+                <span class="ranking-score">${data.overallScore.toFixed(4)}</span>
             </div>
         `;
     });
@@ -1142,6 +1503,7 @@ function updateRankingDetails(rankingInfo, actualRanks) {
 // 순위 뷰 표시
 function showRanking() {
     isRankingView = true;
+    isSimulationView = false;
     
     // 기존 패널들 모두 닫기
     closePanels();
@@ -1160,12 +1522,14 @@ function showRanking() {
         updateLegend();
     }
     
-    // 지도 숨기고 순위 뷰 표시
+    // 다른 뷰들 숨기고 순위 뷰 표시
     document.getElementById('map').style.display = 'none';
+    document.getElementById('simulation-view').style.display = 'none';
     document.getElementById('ranking-view').style.display = 'flex';
     
     // 사이드바 내용 전환
     document.getElementById('map-sidebar-content').style.display = 'none';
+    document.getElementById('simulation-sidebar-content').style.display = 'none';
     document.getElementById('ranking-sidebar-content').style.display = 'block';
     
     // 메인 순위 차트 생성
@@ -1174,22 +1538,61 @@ function showRanking() {
     }, 100);
 }
 
+// 시뮬레이션 뷰 표시
+function showSimulation() {
+    isRankingView = false;
+    isSimulationView = true;
+    
+    // 기존 패널들 모두 닫기
+    closePanels();
+    
+    if (!jeonjuData) {
+        alert('전주시 데이터를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // 다른 뷰들 숨기고 시뮬레이션 뷰 표시
+    document.getElementById('map').style.display = 'none';
+    document.getElementById('ranking-view').style.display = 'none';
+    document.getElementById('simulation-view').style.display = 'flex';
+    
+    // 사이드바 내용 전환
+    document.getElementById('map-sidebar-content').style.display = 'none';
+    document.getElementById('ranking-sidebar-content').style.display = 'none';
+    document.getElementById('simulation-sidebar-content').style.display = 'block';
+    
+    // 시뮬레이션 초기화
+    setTimeout(() => {
+        initializeSliders();
+        createSimulationChart();
+        updateSimulationScores();
+    }, 100);
+}
+
 // 지도 뷰 표시
 function showMap() {
     isRankingView = false;
+    isSimulationView = false;
     
-    // 순위 뷰 숨기고 지도 표시
+    // 모든 뷰 숨기고 지도 표시
     document.getElementById('ranking-view').style.display = 'none';
+    document.getElementById('simulation-view').style.display = 'none';
     document.getElementById('map').style.display = 'block';
     
     // 사이드바 내용 전환
     document.getElementById('map-sidebar-content').style.display = 'block';
     document.getElementById('ranking-sidebar-content').style.display = 'none';
+    document.getElementById('simulation-sidebar-content').style.display = 'none';
     
-    // 순위 차트 정리
+    // 차트 정리
     if (rankingMainChart) {
         rankingMainChart.destroy();
         rankingMainChart = null;
+    }
+    
+    if (simulationChart) {
+        simulationChart.destroy();
+        simulationChart = null;
     }
     
     // 지도 크기 재조정 (숨겨졌다가 다시 표시될 때 필요)
@@ -1211,5 +1614,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 이벤트 리스너 등록
     document.getElementById('dataType').addEventListener('change', updateData);
     document.getElementById('showRankingBtn').addEventListener('click', showRanking);
+    document.getElementById('showSimulationBtn').addEventListener('click', showSimulation);
     document.getElementById('backToMapBtn').addEventListener('click', showMap);
+    document.getElementById('backToMapFromSimBtn').addEventListener('click', showMap);
+    document.getElementById('resetSliders').addEventListener('click', resetSliders);
 });

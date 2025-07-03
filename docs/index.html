@@ -34,6 +34,107 @@
                 </div>
             </div>
             
+            <!-- 시뮬레이션 뷰 (숨김) -->
+            <div id="simulation-view" class="simulation-view" style="display: none;">
+                <div class="simulation-header">
+                    <h2>🎯 전주시 농업 지표 시뮬레이션</h2>
+                    <p>지표를 조정하여 2027년 예상 종합점수 변화를 확인해보세요</p>
+                </div>
+                
+                <div class="simulation-content">
+                    <div class="simulation-left">
+                        <div class="current-score-panel">
+                            <h3>📊 점수 비교 및 2027년 목표 설정</h3>
+                            <div class="score-comparison">
+                                <div class="score-item current">
+                                    <span class="score-label">현재 점수 (2024 기준)</span>
+                                    <span class="score-value" id="current-score">-</span>
+                                </div>
+                                <div class="score-item predicted">
+                                    <span class="score-label">3년 후 예상 (2027 기준)</span>
+                                    <span class="score-value" id="predicted-score">-</span>
+                                </div>
+                                <div class="score-item difference">
+                                    <span class="score-label">개선 효과 (시뮬레이션)</span>
+                                    <span class="score-value" id="score-difference">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-panel">
+                            <canvas id="simulation-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="simulation-right">
+                        <div class="sliders-container">
+                            <h3>🎛️ 지역 조건 설정</h3>
+                            <div class="slider-group">
+                                <label for="slider-farmCount">농가 수</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="slider-farmCount" class="slider" min="0" max="10000" step="50">
+                                    <span class="slider-value" id="value-farmCount">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="slider-group">
+                                <label for="slider-returnFarmers">귀농 인구</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="slider-returnFarmers" class="slider" min="0" max="500" step="5">
+                                    <span class="slider-value" id="value-returnFarmers">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="slider-group">
+                                <label for="slider-riceProduction">쌀 생산량 (kg/10a)</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="slider-riceProduction" class="slider" min="300" max="700" step="10">
+                                    <span class="slider-value" id="value-riceProduction">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="slider-group">
+                                <label for="slider-distributionCount">유통망 수</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="slider-distributionCount" class="slider" min="0" max="50" step="1">
+                                    <span class="slider-value" id="value-distributionCount">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="slider-group">
+                                <label for="slider-processingCount">미곡처리장 수</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="slider-processingCount" class="slider" min="0" max="30" step="1">
+                                    <span class="slider-value" id="value-processingCount">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="slider-group">
+                                <label for="slider-machineryCount">임대 농기계 수</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="slider-machineryCount" class="slider" min="0" max="500" step="5">
+                                    <span class="slider-value" id="value-machineryCount">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="slider-group">
+                                <label for="slider-waterFacilities">저수 시설 수</label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="slider-waterFacilities" class="slider" min="0" max="100" step="1">
+                                    <span class="slider-value" id="value-waterFacilities">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="reset-button-container">
+                                <button id="resetSliders" class="reset-btn">
+                                    🔄 현재 수치로 리셋
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 지도 위 오버레이 패널들 -->
             <div id="data-panels-overlay" class="data-panels-overlay" style="display: none;">
                 <!-- 왼쪽 상단 패널 -->
@@ -106,10 +207,13 @@
                     </div>
                 </div>
                 
-                <!-- 순위 보기 버튼 -->
-                <div class="ranking-button-container">
-                    <button id="showRankingBtn" class="ranking-btn">
+                <!-- 버튼들 -->
+                <div class="button-container">
+                    <button id="showRankingBtn" class="action-btn ranking-btn">
                         🏆 종합 순위 보기
+                    </button>
+                    <button id="showSimulationBtn" class="action-btn simulation-btn">
+                        🎯 전주시 시뮬레이션
                     </button>
                 </div>
             </div>
@@ -147,6 +251,33 @@
                     <h4>📈 상세 순위</h4>
                     <div id="ranking-details">
                         <!-- 순위 상세 정보가 여기에 추가됩니다 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 시뮬레이션 뷰 (숨김) -->
+            <div id="simulation-sidebar-content" style="display: none;">
+                <div class="simulation-sidebar-header">
+                    <h3>🎯 시뮬레이션</h3>
+                    <button id="backToMapFromSimBtn" class="back-btn">
+                        🗺️ 지도로 돌아가기
+                    </button>
+                </div>
+                
+                <div class="simulation-info">
+                    <h4>💡 사용 팁</h4>
+                    <div class="simulation-tips">
+                        <p>🎛️ 슬라이더를 조정하여 3년 후 목표 수치를 설정할 수 있습니다.</p>
+                        <p>📊 변경된 값에 따라 2027년 예상 종합점수가 실시간으로 계산됩니다.</p>
+                        <p>🔄 현재 수치로 리셋 버튼으로 2024년 기준 수치로 되돌릴 수 있습니다.</p>
+                        <p>📈 차트를 통해 현재 점수와 2027년 목표 점수를 비교해보세요.</p>
+                    </div>
+                    
+                    <h4>🏆 목표 순위</h4>
+                    <div id="rank-goal-info">
+                        <p>현재 전주시는 <span id="current-rank">-</span>위입니다.</p>
+                        <p>목표 달성 시 <span id="predicted-rank">-</span>위 수준입니다.</p>
+                        <p>1위 <span id="top-region-name">-</span>와의 격차: <span id="gap-to-first">-</span></p>
                     </div>
                 </div>
             </div>
