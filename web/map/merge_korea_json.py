@@ -31,6 +31,26 @@ def analyze_files():
     except Exception as e:
         print(f"시군구 파일 읽기 오류: {e}")
 
+def get_province_name_by_code(code):
+    """지역 코드로부터 도명 반환"""
+    if not code or len(code) < 2:
+        return None
+    
+    province_codes = {
+        '31': '경기',
+        '32': '강원',
+        '33': '충북',
+        '34': '충남',
+        '35': '전북',
+        '36': '전남',
+        '37': '경북',
+        '38': '경남',
+        '39': '제주'
+    }
+    
+    province_code = code[:2]
+    return province_codes.get(province_code)
+
 def merge_korea_geojson():
     """한국 지도 GeoJSON 파일 합치기"""
     
@@ -132,6 +152,11 @@ def merge_korea_geojson():
                         props.get('NAME'))
             
             if area_name and area_name in integrated_areas:
+                # 한국어 지역명 설정
+                new_props = props.copy()
+                new_props['name'] = area_name
+                new_props['CTP_KOR_NM'] = area_name
+                
                 # 대구광역시인 경우 군위군과 병합
                 if area_name == '대구광역시' and gunwi_feature:
                     print(f"  ✅ {area_name} 추가 (군위군 병합)")
@@ -139,7 +164,7 @@ def merge_korea_geojson():
                     # 새로운 feature 생성 (대구광역시 + 군위군)
                     merged_daegu = {
                         "type": "Feature",
-                        "properties": feature['properties'].copy(),
+                        "properties": new_props,
                         "geometry": {
                             "type": "MultiPolygon",
                             "coordinates": []
@@ -163,7 +188,9 @@ def merge_korea_geojson():
                     merged_features.append(merged_daegu)
                 else:
                     print(f"  ✅ {area_name} 추가")
-                    merged_features.append(feature)
+                    new_feature = feature.copy()
+                    new_feature['properties'] = new_props
+                    merged_features.append(new_feature)
             else:
                 print(f"  ❌ {area_name} 제외 (도 지역으로 처리)")
         
@@ -175,19 +202,33 @@ def merge_korea_geojson():
             
             # 해당 그룹의 구들 찾기
             group_features = []
+            province_name = None
+            
             for feature in municipalities_data['features']:
                 props = feature['properties']
                 area_name = props.get('name', '')
+                area_code = props.get('code', '')
+                
                 if area_name in districts:
                     group_features.append(feature)
                     print(f"  🔍 {area_name} 발견")
+                    
+                    # 도명 확인 (첫 번째 구에서 도명 파악)
+                    if province_name is None:
+                        province_name = get_province_name_by_code(area_code)
             
             if group_features:
+                # 도명이 있는 경우 시 이름 앞에 붙이기
+                final_city_name = city_name
+                if province_name:
+                    final_city_name = f"{province_name} {city_name}"
+                
                 # 병합된 feature 생성
                 merged_city = {
                     "type": "Feature",
                     "properties": {
-                        "name": city_name,
+                        "name": final_city_name,
+                        "CTP_KOR_NM": final_city_name,
                         "code": group_features[0]['properties'].get('code', '')[:4] + '00'  # 시 코드로 변경
                     },
                     "geometry": {
@@ -205,7 +246,7 @@ def merge_korea_geojson():
                         merged_city['geometry']['coordinates'].extend(geom['coordinates'])
                 
                 merged_features.append(merged_city)
-                print(f"  ✅ {city_name} 병합 완료 ({len(group_features)}개 구 병합)")
+                print(f"  ✅ {final_city_name} 병합 완료 ({len(group_features)}개 구 병합)")
             else:
                 print(f"  ❌ {city_name} 해당 구들을 찾을 수 없음")
         
@@ -227,8 +268,24 @@ def merge_korea_geojson():
             elif area_name in districts_to_merge:
                 print(f"  ✅ {area_name} (코드: {area_code}) 시 단위로 병합됨")
             else:
-                print(f"  ✅ {area_name} (코드: {area_code}) 추가")
-                merged_features.append(feature)
+                # 도명 확인 및 한국어 지역명 설정
+                province_name = get_province_name_by_code(area_code)
+                
+                final_area_name = area_name
+                if province_name:
+                    final_area_name = f"{province_name} {area_name}"
+                
+                # 새로운 properties 생성
+                new_props = props.copy()
+                new_props['name'] = final_area_name
+                new_props['CTP_KOR_NM'] = final_area_name
+                
+                # 새로운 feature 생성
+                new_feature = feature.copy()
+                new_feature['properties'] = new_props
+                
+                print(f"  ✅ {final_area_name} (코드: {area_code}) 추가")
+                merged_features.append(new_feature)
         
         # 4. 결과 파일 생성
         print(f"\n=== 결과 파일 생성 ===")
@@ -258,9 +315,9 @@ def merge_korea_geojson():
                         props.get('name') or 
                         props.get('NAME'))
             
-            if area_name and area_name in integrated_areas:
+            if area_name and any(integrated in area_name for integrated in integrated_areas):
                 integrated_count += 1
-            elif area_name and area_name in merge_groups:
+            elif area_name and any(city in area_name for city in merge_groups.keys()):
                 merged_cities_count += 1
             else:
                 municipality_count += 1
