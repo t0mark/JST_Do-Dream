@@ -44,7 +44,7 @@ function initMap() {
         dragging: true,
         touchZoom: false,
         zoomSnap: 0.1
-    }).setView([36, 127.5], 7.4);
+    }).setView([36, 127.5], 7.6);
     
     map.getContainer().style.backgroundColor = '#f8f9fa';
 }
