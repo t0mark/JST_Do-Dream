@@ -143,18 +143,6 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         
-        /* Leaflet 컨트롤 스타일링 */
-        .leaflet-control-zoom a {
-            background-color: white;
-            color: #2c3e50;
-            border: 2px solid #ecf0f1;
-        }
-        
-        .leaflet-control-zoom a:hover {
-            background-color: #2c3e50;
-            color: white;
-        }
-        
         .leaflet-popup-content-wrapper {
             background-color: white;
             border-radius: 8px;
@@ -265,14 +253,14 @@
         // 지도 초기화
         function initMap() {
             map = L.map('map', {
-                zoomControl: true,
-                scrollWheelZoom: true,
-                doubleClickZoom: true,
-                boxZoom: true,
-                keyboard: true,
-                dragging: true,
-                touchZoom: true
-            }).setView([36.5, 127.5], 7);
+                zoomControl: false,        // 줌 컨트롤 버튼 제거
+                scrollWheelZoom: false,    // 마우스 휠 줌 비활성화
+                doubleClickZoom: false,    // 더블클릭 줌 비활성화
+                boxZoom: false,            // 박스 줌 비활성화
+                keyboard: false,           // 키보드 줌 비활성화
+                dragging: true,            // 드래그 이동 활성화
+                touchZoom: false           // 터치 줌 비활성화
+            }).setView([36, 127.5], 7);  // 위치 및 크기 변수
             
             // 배경을 단색으로 설정 (타일맵 없이)
             map.getContainer().style.backgroundColor = '#f8f9fa';
@@ -338,9 +326,7 @@
         }
         
         function zoomToFeature(e) {
-            map.fitBounds(e.target.getBounds());
-            
-            // 사이드바 정보 업데이트
+            // 확대 기능 제거 - 정보만 업데이트
             const regionName = e.target.feature.properties.CTP_KOR_NM || e.target.feature.properties.SIG_KOR_NM || e.target.feature.properties.name;
             const value = currentData[regionName] || 0;
             
@@ -368,10 +354,13 @@
         // GeoJSON 데이터 로드
         async function loadGeoJSON() {
             try {
-                // 공개된 한국 시군구 GeoJSON 데이터 URL
-                const url = 'https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2018/json/skorea-municipalities-2018-geo.json';
+                // 로컬 GeoJSON 파일 경로
+                const url = './skorea-municipalities-2018-geo.json';
                 
                 const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`파일을 찾을 수 없습니다: ${url}`);
+                }
                 const geoData = await response.json();
                 
                 // 기존 레이어 제거
@@ -385,8 +374,7 @@
                     onEachFeature: onEachFeature
                 }).addTo(map);
                 
-                // 한국 전체가 보이도록 지도 범위 조정
-                map.fitBounds(geojsonLayer.getBounds());
+                // 지도 범위 자동 조정 제거 - 고정된 뷰 유지
                 
                 // 로딩 표시 제거
                 document.getElementById('loading').style.display = 'none';
@@ -396,7 +384,10 @@
                 
             } catch (error) {
                 console.error('GeoJSON 로드 실패:', error);
-                document.getElementById('loading').innerHTML = '<p>지도 데이터 로드에 실패했습니다.</p>';
+                document.getElementById('loading').innerHTML = 
+                    '<p>지도 데이터 로드에 실패했습니다.</p>' +
+                    '<p style="font-size: 12px; color: #666;">skorea-municipalities-2018-geo.json 파일이 필요합니다.</p>' +
+                    '<p style="font-size: 12px; color: #666;">다운로드 링크: <a href="https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2018/json/skorea-municipalities-2018-geo.json" target="_blank">여기서 다운로드</a></p>';
             }
         }
         
