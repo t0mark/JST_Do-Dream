@@ -1,0 +1,342 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Noto Sans KR', Arial, sans-serif;
+    background-color: #f5f5f5;
+}
+
+.header {
+    background-color: #2c3e50;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.container {
+    display: flex;
+    height: calc(100vh - 80px);
+}
+
+.map-container {
+    flex: 1;
+    position: relative;
+}
+
+#map {
+    height: 100%;
+    width: 100%;
+    background-color: #f8f9fa;
+}
+
+.sidebar {
+    width: 300px;
+    background-color: white;
+    padding: 20px;
+    box-shadow: -2px 0 4px rgba(0,0,0,0.1);
+    overflow-y: auto;
+}
+
+.info-panel {
+    background-color: #ecf0f1;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.info-panel h3 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.instruction {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.instruction p {
+    margin: 5px 0;
+}
+
+.legend {
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.legend h4 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.legend-color {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    border: 1px solid #ccc;
+}
+
+.controls {
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.controls h4 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.control-group {
+    margin-bottom: 15px;
+}
+
+.control-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.control-group select, .control-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(255,255,255,0.9);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    z-index: 1000;
+}
+
+/* 지도 위 오버레이 패널들 */
+.data-panels-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.data-panel {
+    position: absolute;
+    width: 450px;
+    height: 300px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    padding: 15px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    pointer-events: auto;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.3s ease;
+}
+
+.data-panel.show {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* 패널 위치 */
+.data-panel.left-top {
+    top: 20px;
+    left: 20px;
+}
+
+.data-panel.left-bottom {
+    bottom: 80px;
+    left: 20px;
+}
+
+.data-panel.right-top {
+    top: 20px;
+    right: 20px;
+}
+
+.data-panel.right-bottom {
+    bottom: 80px;
+    right: 20px;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #ecf0f1;
+}
+
+.panel-title {
+    font-weight: bold;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #7f8c8d;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.panel-content {
+    height: calc(100% - 40px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.panel-content canvas {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* 지역 정보 오버레이 */
+.region-info-overlay {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(255, 255, 255, 0.95);
+    padding: 15px 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    z-index: 1000;
+    min-width: 300px;
+    max-width: 600px;
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    transition: all 0.3s ease;
+    pointer-events: auto;
+}
+
+.region-info-overlay.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.region-summary {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.region-card {
+    flex: 1;
+    min-width: 200px;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 10px;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.region-card.region-2 {
+    border-left-color: #e74c3c;
+}
+
+.region-card h5 {
+    margin: 0 0 8px 0;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.region-card p {
+    margin: 4px 0;
+    font-size: 12px;
+    color: #555;
+}
+
+.tooltip {
+    background-color: rgba(44, 62, 80, 0.95);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.leaflet-popup-content-wrapper {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.leaflet-popup-tip {
+    background-color: white;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    .data-panel {
+        width: 300px;
+        height: 220px;
+    }
+    
+    .data-panel.left-top,
+    .data-panel.left-bottom {
+        left: 10px;
+    }
+    
+    .data-panel.right-top,
+    .data-panel.right-bottom {
+        right: 10px;
+    }
+    
+    .region-info-overlay {
+        min-width: 250px;
+        max-width: 90%;
+    }
+    
+    .region-summary {
+        flex-direction: column;
+    }
+}
