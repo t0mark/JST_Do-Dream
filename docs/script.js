@@ -588,7 +588,7 @@ function updateChart3(regions) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: regions.length > 1,
+                    display: true,
                     position: 'top',
                     labels: {
                         boxWidth: 10,
@@ -1093,6 +1093,20 @@ function showRanking() {
     
     // 기존 패널들 모두 닫기
     closePanels();
+    
+    // 카테고리를 종합 점수로 자동 변경
+    const dataTypeSelect = document.getElementById('dataType');
+    dataTypeSelect.value = 'overall';
+    
+    // 데이터 업데이트 (종합 점수 기준으로)
+    updateDataValues();
+    updateCategoryDescription();
+    
+    // 지도 스타일도 업데이트 (지도로 돌아갔을 때를 위해)
+    if (geojsonLayer) {
+        geojsonLayer.setStyle(style);
+        updateLegend();
+    }
     
     // 지도 숨기고 순위 뷰 표시
     document.getElementById('map').style.display = 'none';
