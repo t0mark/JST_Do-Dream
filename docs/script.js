@@ -891,7 +891,7 @@ function updateData() {
     }
 }
 
-// 순위 데이터 생성
+// 순위 데이터 생성 (수정된 부분)
 function getRankingData() {
     // 종합 점수 기준으로 정렬
     const sortedRegions = Object.entries(currentData)
@@ -901,25 +901,52 @@ function getRankingData() {
     // Top 5 추출
     const top5 = sortedRegions.slice(0, 5);
     
+    // 하위 5 추출 (꼴지와 뒤에서 2등 제외, 뒤에서 3등부터 7등까지)
+    const bottom5 = sortedRegions.slice(-7, -2); // 뒤에서 7등부터 3등까지, 낮은 등수(뒤에서 3등)가 오른쪽에 오도록
+    
     // 전북 전주시 찾기
     const jeonjuData = sortedRegions.find(([regionName, data]) => 
         regionName.includes('전주') || regionName.includes('전북 전주시')
     );
     
-    let rankingData = [...top5];
+    let rankingData = [];
     
-    // 전주시가 Top 5에 없으면 추가
-    if (jeonjuData && !top5.find(([name]) => name === jeonjuData[0])) {
-        rankingData.push(jeonjuData);
+    // Top 5 추가
+    rankingData = [...top5];
+    
+    // 전주시가 Top 5에 없고 하위 5에도 없으면 중간에 추가
+    if (jeonjuData) {
+        const jeonjuRank = sortedRegions.findIndex(([name]) => name === jeonjuData[0]) + 1;
+        const isInTop5 = jeonjuRank <= 5;
+        const isInBottom5 = jeonjuRank > (sortedRegions.length - 7); // 뒤에서 7등까지 체크
+        
+        if (!isInTop5 && !isInBottom5) {
+            rankingData.push(jeonjuData);
+        }
+    }
+    
+    // 하위 5 추가
+    rankingData = [...rankingData, ...bottom5];
+    
+    // 중복 제거 (전주시가 이미 포함된 경우)
+    const uniqueRankingData = [];
+    const seenRegions = new Set();
+    
+    for (const [regionName, data] of rankingData) {
+        if (!seenRegions.has(regionName)) {
+            uniqueRankingData.push([regionName, data]);
+            seenRegions.add(regionName);
+        }
     }
     
     return {
-        data: rankingData,
-        jeonjuRank: jeonjuData ? sortedRegions.findIndex(([name]) => name === jeonjuData[0]) + 1 : null
+        data: uniqueRankingData,
+        jeonjuRank: jeonjuData ? sortedRegions.findIndex(([name]) => name === jeonjuData[0]) + 1 : null,
+        totalRegions: sortedRegions.length
     };
 }
 
-// 메인 순위 차트 생성 (지도 영역에 크게 표시)
+// 메인 순위 차트 생성 (지도 영역에 크게 표시) - 수정된 부분
 function createRankingChart() {
     const ctx = document.getElementById('ranking-main-chart').getContext('2d');
     const rankingInfo = getRankingData();
@@ -929,34 +956,42 @@ function createRankingChart() {
         rankingMainChart.destroy();
     }
     
-    const labels = rankingData.map(([regionName]) => {
-        // 지역명 전체 표시
-        return regionName;
-    });
-    
+    const labels = rankingData.map(([regionName]) => regionName);
     const scores = rankingData.map(([, data]) => data.overallScore);
+    
+    // 실제 순위 계산
+    const actualRanks = rankingData.map(([regionName]) => {
+        const sortedRegions = Object.entries(currentData)
+            .filter(([regionName, data]) => data.overallScore && data.overallScore > 0)
+            .sort((a, b) => b[1].overallScore - a[1].overallScore);
+        return sortedRegions.findIndex(([name]) => name === regionName) + 1;
+    });
     
     // 실제 데이터 범위 계산
     const maxScore = Math.max(...scores);
     const minScore = Math.min(...scores);
     const scoreRange = maxScore - minScore;
-    const yAxisMax = maxScore + (scoreRange * 0.1); // 최대값에서 10% 여유
-    const yAxisMin = Math.max(0, minScore - (scoreRange * 0.1)); // 최소값에서 10% 여유 (0 이하로 가지 않음)
+    const yAxisMax = maxScore + (scoreRange * 0.1);
+    const yAxisMin = Math.max(0, minScore - (scoreRange * 0.1));
     
-    console.log('점수 범위:', { minScore, maxScore, yAxisMin, yAxisMax });
-    
-    // 전주시 여부 확인해서 색상 다르게
-    const backgroundColors = rankingData.map(([regionName]) => {
+    // 색상 설정 (Top 5, 전주시, 하위 5 구분)
+    const backgroundColors = rankingData.map(([regionName], index) => {
+        const actualRank = actualRanks[index];
         if (regionName.includes('전주')) {
             return '#f39c12'; // 전주시는 오렌지
+        } else if (actualRank <= 5) {
+            return '#27ae60'; // Top 5는 그린
+        } else if (actualRank > (rankingInfo.totalRegions - 5)) {
+            return '#e74c3c'; // 하위 5는 레드
+        } else {
+            return '#3498db'; // 중간은 블루
         }
-        return '#3498db'; // 나머지는 블루
     });
     
-    const borderColors = rankingData.map(([regionName]) => {
-        if (regionName.includes('전주')) {
-            return '#e67e22';
-        }
+    const borderColors = backgroundColors.map(color => {
+        if (color === '#f39c12') return '#e67e22';
+        if (color === '#27ae60') return '#229954';
+        if (color === '#e74c3c') return '#c0392b';
         return '#2980b9';
     });
     
@@ -997,8 +1032,7 @@ function createRankingChart() {
                     callbacks: {
                         title: function(context) {
                             const index = context[0].dataIndex;
-                            const actualRank = rankingData[index][0].includes('전주') && index === 5 ? 
-                                rankingInfo.jeonjuRank : index + 1;
+                            const actualRank = actualRanks[index];
                             return `${actualRank}위: ${rankingData[index][0]}`;
                         },
                         label: function(context) {
@@ -1061,11 +1095,11 @@ function createRankingChart() {
     });
     
     // 순위 상세 정보 업데이트
-    updateRankingDetails(rankingInfo);
+    updateRankingDetails(rankingInfo, actualRanks);
 }
 
-// 순위 상세 정보 업데이트
-function updateRankingDetails(rankingInfo) {
+// 순위 상세 정보 업데이트 - 수정된 부분
+function updateRankingDetails(rankingInfo, actualRanks) {
     const detailsContainer = document.getElementById('ranking-details');
     const rankingData = rankingInfo.data;
     
@@ -1073,11 +1107,19 @@ function updateRankingDetails(rankingInfo) {
     
     rankingData.forEach(([regionName, data], index) => {
         const isJeonju = regionName.includes('전주');
-        const actualRank = isJeonju && index === 5 ? rankingInfo.jeonjuRank : index + 1;
+        const actualRank = actualRanks[index];
+        
+        // 순위 그룹 표시
+        let rankGroup = '';
+        if (actualRank <= 5) {
+            rankGroup = '🏆 ';
+        } else if (actualRank > (rankingInfo.totalRegions - 5)) {
+            rankGroup = '📉 ';
+        }
         
         detailsHTML += `
             <div class="ranking-item ${isJeonju ? 'jeonju' : ''}">
-                <span class="ranking-number">${actualRank}위</span>
+                <span class="ranking-number">${rankGroup}${actualRank}위</span>
                 <span class="ranking-region">${regionName}</span>
                 <span class="ranking-score">${data.overallScore.toFixed(4)}점</span>
             </div>
