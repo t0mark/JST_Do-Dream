@@ -239,7 +239,17 @@ function highlightFeature(e) {
         tooltipContent += `<br><em>데이터 없음</em>`;
     }
     
-    const tooltip = L.popup()
+    // 팝업을 드래그할 수 없도록 설정
+    const tooltip = L.popup({
+        closeButton: false,
+        autoClose: true,
+        closeOnClick: false,
+        className: 'tooltip',
+        // 드래그 비활성화 옵션들
+        draggable: false,
+        interactive: false,
+        bubblingMouseEvents: false
+    })
         .setLatLng(e.latlng)
         .setContent(tooltipContent)
         .openOn(map);
