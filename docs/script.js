@@ -250,6 +250,31 @@ function initMap() {
 function getColor(value, dataType = 'sample') {
     const scheme = dataTypeColorMap[dataType] || 'blues';
     const colors = colorSchemes[scheme];
+    
+    // 종합 점수일 때 특별한 색상 구분 적용
+    if (dataType === 'overall') {
+        if (value <= 0.5) {
+            return colors[0]; // 0.5 이하 - 가장 연한 색
+        } else if (value <= 0.55) {
+            return colors[1]; // 0.5 ~ 0.55
+        } else if (value <= 0.6) {
+            return colors[2]; // 0.55 ~ 0.6
+        } else if (value <= 0.65) {
+            return colors[3]; // 0.6 ~ 0.65
+        } else if (value <= 0.7) {
+            return colors[4]; // 0.65 ~ 0.7
+        } else if (value <= 0.75) {
+            return colors[5]; // 0.7 ~ 0.75
+        } else if (value <= 0.8) {
+            return colors[6]; // 0.75 ~ 0.8
+        } else if (value <= 0.9) {
+            return colors[7]; // 0.8 ~ 0.9
+        } else {
+            return colors[8]; // 0.9 이상 - 가장 진한 색
+        }
+    }
+    
+    // 다른 데이터 유형은 기존 방식 사용
     const allValues = Object.values(currentData).map(d => d.industry);
     
     if (allValues.length === 0) return colors[4];
@@ -843,13 +868,6 @@ function updateLegend() {
     const dataType = document.getElementById('dataType').value;
     const scheme = dataTypeColorMap[dataType] || 'blues';
     const colors = colorSchemes[scheme];
-    const allValues = Object.values(currentData).map(d => d.industry);
-    
-    if (allValues.length === 0) return;
-    
-    const max = Math.max(...allValues);
-    const min = Math.min(...allValues);
-    const stepSize = (max - min) / (colors.length - 1);
     
     // 카테고리별 단위 설정
     let unit = '';
@@ -858,7 +876,7 @@ function updateLegend() {
             unit = '점';
             break;
         case 'production':
-            unit = 'kg/10a';
+            unit = '지수';
             break;
         case 'infrastructure':
             unit = '지수';
@@ -876,26 +894,74 @@ function updateLegend() {
     const legendContent = document.getElementById('legend-content');
     legendContent.innerHTML = '';
     
-    for (let i = colors.length - 1; i >= 0; i--) {
-        const minValue = min + (stepSize * i);
-        const maxValue = min + (stepSize * (i + 1));
+    // 종합 점수일 때 특별한 범례 표시
+    if (dataType === 'overall') {
+        const ranges = [
+            { min: 0.9, max: 1.0, color: colors[8] },
+            { min: 0.8, max: 0.9, color: colors[7] },
+            { min: 0.75, max: 0.8, color: colors[6] },
+            { min: 0.7, max: 0.75, color: colors[5] },
+            { min: 0.65, max: 0.7, color: colors[4] },
+            { min: 0.6, max: 0.65, color: colors[3] },
+            { min: 0.55, max: 0.6, color: colors[2] },
+            { min: 0.5, max: 0.55, color: colors[1] },
+            { min: 0.0, max: 0.5, color: colors[0] }
+        ];
         
-        const legendItem = document.createElement('div');
-        legendItem.className = 'legend-item';
+        ranges.forEach(range => {
+            const legendItem = document.createElement('div');
+            legendItem.className = 'legend-item';
+            
+            if (range.min === 0.0) {
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background-color: ${range.color}"></div>
+                    <span>${range.max.toFixed(1)} 이하 ${unit}</span>
+                `;
+            } else if (range.max === 1.0) {
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background-color: ${range.color}"></div>
+                    <span>${range.min.toFixed(2)} 이상 ${unit}</span>
+                `;
+            } else {
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background-color: ${range.color}"></div>
+                    <span>${range.min.toFixed(2)} - ${range.max.toFixed(2)} ${unit}</span>
+                `;
+            }
+            
+            legendContent.appendChild(legendItem);
+        });
+    } else {
+        // 다른 데이터 유형은 기존 방식 사용
+        const allValues = Object.values(currentData).map(d => d.industry);
         
-        if (i === colors.length - 1) {
-            legendItem.innerHTML = `
-                <div class="legend-color" style="background-color: ${colors[i]}"></div>
-                <span>${minValue.toFixed(1)} - ${max.toFixed(1)} ${unit}</span>
-            `;
-        } else {
-            legendItem.innerHTML = `
-                <div class="legend-color" style="background-color: ${colors[i]}"></div>
-                <span>${minValue.toFixed(1)} - ${maxValue.toFixed(1)} ${unit}</span>
-            `;
+        if (allValues.length === 0) return;
+        
+        const max = Math.max(...allValues);
+        const min = Math.min(...allValues);
+        const stepSize = (max - min) / (colors.length - 1);
+        
+        for (let i = colors.length - 1; i >= 0; i--) {
+            const minValue = min + (stepSize * i);
+            const maxValue = min + (stepSize * (i + 1));
+            
+            const legendItem = document.createElement('div');
+            legendItem.className = 'legend-item';
+            
+            if (i === colors.length - 1) {
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background-color: ${colors[i]}"></div>
+                    <span>${minValue.toFixed(1)} - ${max.toFixed(1)} ${unit}</span>
+                `;
+            } else {
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background-color: ${colors[i]}"></div>
+                    <span>${minValue.toFixed(1)} - ${maxValue.toFixed(1)} ${unit}</span>
+                `;
+            }
+            
+            legendContent.appendChild(legendItem);
         }
-        
-        legendContent.appendChild(legendItem);
     }
 }
 
@@ -903,41 +969,54 @@ function updateLegend() {
 function updateDataValues() {
     const dataType = document.getElementById('dataType').value;
     
-    Object.keys(currentData).forEach(regionName => {
-        const regionData = currentData[regionName];
+    // 생산량 지수를 위한 정규화 처리
+    if (dataType === 'production') {
+        const riceProductionValues = Object.values(currentData).map(d => d.riceProduction).filter(v => v > 0);
+        const minProduction = Math.min(...riceProductionValues);
+        const maxProduction = Math.max(...riceProductionValues);
+        const productionRange = maxProduction - minProduction;
         
-        switch (dataType) {
-            case 'overall':
-                // 종합 점수 사용
-                regionData.industry = regionData.overallScore;
-                break;
-                
-            case 'production':
-                // 10a당 총 쌀 생산량 사용
-                regionData.industry = regionData.riceProduction;
-                break;
-                
-            case 'infrastructure':
-                // 농기계 수와 저수 시설의 가중 평균 (정규화)
-                const normalizedMachinery = regionData.machineryCount / 10; // 스케일 조정
-                const normalizedWater = regionData.waterFacilities * 5; // 스케일 조정
-                regionData.industry = (normalizedMachinery + normalizedWater) / 2;
-                break;
-                
-            case 'distribution':
-                // 유통망 수와 미곡처리장 수의 가중합
-                regionData.industry = (regionData.distributionCount * 3) + (regionData.processingCount * 2);
-                break;
-                
-            case 'migration':
-                // 귀농 비율 사용
-                regionData.industry = regionData.returnRatio;
-                break;
-                
-            default:
-                regionData.industry = regionData.overallScore;
-        }
-    });
+        Object.keys(currentData).forEach(regionName => {
+            const regionData = currentData[regionName];
+            if (regionData.riceProduction > 0 && productionRange > 0) {
+                // 0~1 사이의 정규화된 값으로 변환
+                regionData.industry = (regionData.riceProduction - minProduction) / productionRange;
+            } else {
+                regionData.industry = 0;
+            }
+        });
+    } else {
+        Object.keys(currentData).forEach(regionName => {
+            const regionData = currentData[regionName];
+            
+            switch (dataType) {
+                case 'overall':
+                    // 종합 점수 사용
+                    regionData.industry = regionData.overallScore;
+                    break;
+                    
+                case 'infrastructure':
+                    // 농기계 수와 저수 시설의 가중 평균 (정규화)
+                    const normalizedMachinery = regionData.machineryCount / 10; // 스케일 조정
+                    const normalizedWater = regionData.waterFacilities * 5; // 스케일 조정
+                    regionData.industry = (normalizedMachinery + normalizedWater) / 2;
+                    break;
+                    
+                case 'distribution':
+                    // 유통망 수와 미곡처리장 수의 가중합
+                    regionData.industry = (regionData.distributionCount * 3) + (regionData.processingCount * 2);
+                    break;
+                    
+                case 'migration':
+                    // 귀농 비율 사용
+                    regionData.industry = regionData.returnRatio;
+                    break;
+                    
+                default:
+                    regionData.industry = regionData.overallScore;
+            }
+        });
+    }
 }
 
 // 카테고리 설명 업데이트
